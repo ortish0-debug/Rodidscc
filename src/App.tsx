@@ -236,69 +236,69 @@ export default function App() {
           {/* Invisible Spacer on desktop to balance centered logo layout */}
           <div className="w-12 md:w-52 h-12 hidden md:block opacity-0 pointer-events-none"></div>
         </div>
+
+        {/* MOBILE MENU NAV PANEL - Nested inside the fixed <nav> to act as a pure overlay that never shifts the main layout */}
+        <AnimatePresence>
+          {isMobileMenuOpen && (
+            <motion.div 
+              initial={{ opacity: 0, y: -12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.15, ease: 'easeOut' }}
+              className="absolute top-16 left-4 right-4 z-50 md:hidden liquid-glass-strong rounded-3xl p-6 flex flex-col gap-4 border border-white/5"
+            >
+              <a 
+                href="#hero" 
+                onClick={(e) => scrollToSection(e, 'hero', true)}
+                className="py-3 px-4 rounded-xl hover:bg-white/5 text-lg font-light tracking-wide text-white"
+              >
+                Главная
+              </a>
+              <a 
+                href="#services" 
+                onClick={(e) => scrollToSection(e, 'services', true)}
+                className="py-3 px-4 rounded-xl hover:bg-white/5 text-lg font-light tracking-wide text-white"
+              >
+                Услуги
+              </a>
+              <a 
+                href="#clients" 
+                onClick={(e) => scrollToSection(e, 'clients', true)}
+                className="py-3 px-4 rounded-xl hover:bg-white/5 text-lg font-light tracking-wide text-white"
+              >
+                Клиенты
+              </a>
+              <a 
+                href="#about" 
+                onClick={(e) => scrollToSection(e, 'about', true)}
+                className="py-3 px-4 rounded-xl hover:bg-white/5 text-lg font-light tracking-wide text-white"
+              >
+                О нас
+              </a>
+              <button 
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  setIsContactOpen(true);
+                }}
+                className="py-3 px-4 text-left rounded-xl hover:bg-white/5 text-lg font-light tracking-wide text-white"
+              >
+                Контакты
+              </button>
+
+              <button 
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  setIsContactOpen(true);
+                }}
+                className="w-full justify-center bg-white text-black py-4 rounded-2xl font-semibold flex items-center gap-2 mt-2"
+              >
+                Начать проект
+                <ArrowUpRight className="h-5 w-5 stroke-[2.5]" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </nav>
-
-      {/* MOBILE MENU NAV PANEL */}
-      <AnimatePresence>
-        {isMobileMenuOpen && (
-          <motion.div 
-            initial={{ opacity: 0, y: -12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
-            transition={{ duration: 0.15, ease: 'easeOut' }}
-            className="fixed top-20 left-4 right-4 z-40 md:hidden liquid-glass-strong rounded-3xl p-6 flex flex-col gap-4 border border-white/5"
-          >
-            <a 
-              href="#hero" 
-              onClick={(e) => scrollToSection(e, 'hero', true)}
-              className="py-3 px-4 rounded-xl hover:bg-white/5 text-lg font-light tracking-wide text-white"
-            >
-              Главная
-            </a>
-            <a 
-              href="#services" 
-              onClick={(e) => scrollToSection(e, 'services', true)}
-              className="py-3 px-4 rounded-xl hover:bg-white/5 text-lg font-light tracking-wide text-white"
-            >
-              Услуги
-            </a>
-            <a 
-              href="#clients" 
-              onClick={(e) => scrollToSection(e, 'clients', true)}
-              className="py-3 px-4 rounded-xl hover:bg-white/5 text-lg font-light tracking-wide text-white"
-            >
-              Клиенты
-            </a>
-            <a 
-              href="#about" 
-              onClick={(e) => scrollToSection(e, 'about', true)}
-              className="py-3 px-4 rounded-xl hover:bg-white/5 text-lg font-light tracking-wide text-white"
-            >
-              О нас
-            </a>
-            <button 
-              onClick={() => {
-                setIsMobileMenuOpen(false);
-                setIsContactOpen(true);
-              }}
-              className="py-3 px-4 text-left rounded-xl hover:bg-white/5 text-lg font-light tracking-wide text-white"
-            >
-              Контакты
-            </button>
-
-            <button 
-              onClick={() => {
-                setIsMobileMenuOpen(false);
-                setIsContactOpen(true);
-              }}
-              className="w-full justify-center bg-white text-black py-4 rounded-2xl font-semibold flex items-center gap-2 mt-2"
-            >
-              Начать проект
-              <ArrowUpRight className="h-5 w-5 stroke-[2.5]" />
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* SECTION 1 — HERO SECTION */}
       <section 
