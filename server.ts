@@ -160,14 +160,31 @@ async function startServer() {
     }
 
     const token = config.botToken || DEFAULT_BOT_TOKEN;
-    const text = `🔥 *Новая заявка с сайта AXIOM*\n\n` +
-                 `👤 *Имя:* ${name}\n` +
-                 `🏢 *Организация:* ${company || "Не указана"}\n` +
-                 `📱 *Телефон:* ${phone || "Не указан"}\n` +
-                 `📞 *Контакты:* ${contact}\n` +
-                 `💡 *Сфера:* ${service}\n` +
-                 `💬 *Задача:* ${message || "Не заполнено"}\n\n` +
-                 `🕒 _Отправлено: ${new Date().toLocaleString("ru-RU")}_`;
+
+    // Helper to escape HTML characters from user input to prevent Telegram parsing crashes
+    const escapeHtml = (unsafe: string): string => {
+      if (!unsafe) return "";
+      return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    };
+
+    const safeName = escapeHtml(name);
+    const safeCompany = escapeHtml(company || "Не указана");
+    const safePhone = escapeHtml(phone || "Не указан");
+    const safeContact = escapeHtml(contact);
+    const safeService = escapeHtml(service);
+    const safeMessage = escapeHtml(message || "Не заполнено");
+
+    const text = `🔥 <b>Новая заявка с сайта AXIOM</b>\n\n` +
+                 `👤 <b>Имя:</b> ${safeName}\n` +
+                 `🏢 <b>Организация:</b> ${safeCompany}\n` +
+                 `📱 <b>Телефон:</b> ${safePhone}\n` +
+                 `📞 <b>Контакты:</b> ${safeContact}\n` +
+                 `💡 <b>Сфера:</b> ${safeService}\n` +
+                 `💬 <b>Задача:</b>\n${safeMessage}\n\n` +
+                 `🕒 <i>Отправлено: ${new Date().toLocaleString("ru-RU")}</i>`;
 
     try {
       const telRes = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
@@ -176,14 +193,15 @@ async function startServer() {
         body: JSON.stringify({
           chat_id: currentChatId,
           text: text,
-          parse_mode: "Markdown"
+          parse_mode: "HTML"
         })
       });
 
       const telData: any = await telRes.json();
       if (!telRes.ok || !telData.ok) {
         console.error("Telegram delivery error:", telData);
-        return res.status(502).json({
+        // Avoid 502 status as cloud reverse proxies (Nginx/Cloud Run) intercept 5xx and overwrite with generic HTML
+        return res.status(400).json({
           error: "telegram_api_error",
           message: `Ошибка доставки в Telegram: ${telData.description || telRes.statusText}`,
           leadSavedLocally: true
@@ -193,7 +211,8 @@ async function startServer() {
       return res.json({ success: true, message: "Заявка успешно отправлена!" });
     } catch (err: any) {
       console.error("Network error sending to Telegram:", err);
-      return res.status(500).json({
+      // Avoid 500 status as cloud reverse proxies intercept 5xx and overwrite with generic HTML
+      return res.status(400).json({
         error: "server_network_error",
         message: "Службы Telegram временно недоступны, но ваша заявка успешно сохранена в нашей локальной панели CRM.",
         leadSavedLocally: true

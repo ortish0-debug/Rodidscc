@@ -1,0 +1,31 @@
+[
+  {
+    "id": "1779838933256",
+    "name": "Rodion Mkrtychev",
+    "company": "авекуе",
+    "contact": "ortish0@gmail.com",
+    "service": "AI внедрение",
+    "message": "еку",
+    "createdAt": "2026-05-26T23:42:13.256Z"
+  },
+  {
+    "id": "1779839508229",
+    "name": "Дмитрий_Тест",
+    "company": "AXIOM",
+    "phone": "+79998887766",
+    "contact": "@Ortish0",
+    "service": "AI внедрение",
+    "message": "Привет, тест интеграции!",
+    "createdAt": "2026-05-26T23:51:48.229Z"
+  },
+  {
+    "id": "1779839539699",
+    "name": "Дмитрий_Тест",
+    "company": "AXIOM",
+    "phone": "+79998887766",
+    "contact": "@Ortish_Founder",
+    "service": "AI внедрение",
+    "message": "Привет, <тест> с & спец-символами!",
+    "createdAt": "2026-05-26T23:52:19.699Z"
+  }
+]
