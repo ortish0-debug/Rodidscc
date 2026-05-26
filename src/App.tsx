@@ -574,138 +574,6 @@ export default function App() {
         </div>
       </section>
 
-      {/* SECTION 3 — ABOUT US */}
-      <section 
-        id="about" 
-        className="relative min-h-screen w-full bg-black overflow-hidden flex flex-col justify-center border-t border-white/5"
-      >
-        <div className="relative z-10 w-full max-w-7xl mx-auto px-6 md:px-16 lg:px-20 pt-28 pb-16 flex flex-col min-h-screen justify-between">
-          
-          {/* Header */}
-          <div className="mb-12 text-left">
-            <motion.div 
-              initial={{ opacity: 0, x: -10 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true, margin: '-100px' }}
-              transition={{ duration: 0.5 }}
-              className="text-xs font-mono text-neutral-400 tracking-widest uppercase mb-4"
-            >
-              // О компании и ценности
-            </motion.div>
-            
-            <motion.h2 
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: '-100px' }}
-              transition={{ duration: 0.6, delay: 0.1 }}
-              className="font-heading italic text-white text-4xl md:text-5.5xl lg:text-6xl tracking-tight leading-none font-medium text-left"
-            >
-              Соединяем Финансовую Прагматику <br />и AI-Инновации
-            </motion.h2>
-          </div>
-
-          {/* Grid Content */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start mt-4 mb-16">
-            
-            {/* Left Narrative Column */}
-            <motion.div 
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-              className="lg:col-span-4 flex flex-col gap-6 text-left"
-            >
-              <div className="liquid-glass rounded-2xl p-6 border border-white/5">
-                <div className="flex items-center gap-3 text-white mb-4">
-                  <Calendar className="h-5 w-5 text-white/80" />
-                  <span className="font-mono text-sm tracking-wide uppercase">// ИСТОРИЯ</span>
-                </div>
-                <p className="text-sm text-neutral-300 font-body font-light leading-relaxed">
-                  AXIOM Consulting работает <span className="text-white font-medium">с 2022 года</span>. Мы начинали как бутиковое финансовое бюро для крупного ритейла и производственного сектора.
-                </p>
-                <p className="text-sm text-neutral-300 font-body font-light leading-relaxed mt-3">
-                  С развитием генеративного интеллекта мы первыми разработали комплексную методологию аудита и расчёта экономического эффекта от внедрения LLM-агентов, защищая инвестиции наших клиентов на этапе идеи.
-                </p>
-              </div>
-
-              <div className="liquid-glass rounded-2xl p-6 border border-white/5">
-                <div className="flex items-center gap-3 text-white mb-4">
-                  <Award className="h-5 w-5 text-white/80" />
-                  <span className="font-mono text-sm tracking-wide uppercase">// НАШ ФОКУС</span>
-                </div>
-                <p className="text-sm text-neutral-300 font-body font-light leading-relaxed">
-                  Никакого пуританского ИТ-словаря или завышенных ожиданий. Каждое техническое архитектурное решение оцифровывается в CAPEX, OPEX, NPV и период окупаемости. Мы не пишем код — мы управляем вашими финансовыми результатами.
-                </p>
-              </div>
-            </motion.div>
-
-            {/* Right Team Column */}
-            <motion.div 
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: 0.3 }}
-              className="lg:col-span-8 flex flex-col gap-6 text-left"
-            >
-              <div className="flex items-center gap-3 text-white mb-2">
-                <Users className="h-5 w-5 text-white/80" />
-                <span className="font-mono text-sm tracking-wide uppercase">// КЛЮЧЕВАЯ КОМАНДА</span>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                
-                {/* Team Member 1 */}
-                <div className="liquid-glass rounded-2xl p-6 border border-white/5 flex flex-col justify-between min-h-[220px] hover:bg-white/[0.02] transition-colors">
-                  <div>
-                    <h4 className="font-heading italic text-xl text-white font-medium">Финансовый директор</h4>
-                    <p className="text-xs text-white/50 font-mono mt-1 uppercase tracking-wider">Управляющий партнер / Экс-EY</p>
-                    <p className="text-sm text-neutral-300 font-body font-light mt-4 leading-relaxed">
-                      Экс-консультант "Большой Четверки" (EY), сертифицированный финансовый аналитик (CFA). 10+ лет в корпоративных финансах и ИТ-стратегии среднего и крупного бизнеса.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Team Member 2 */}
-                <div className="liquid-glass rounded-2xl p-6 border border-white/5 flex flex-col justify-between min-h-[220px] hover:bg-white/[0.02] transition-colors">
-                  <div>
-                    <h4 className="font-heading italic text-xl text-white font-medium">Главный AI-архитектор</h4>
-                    <p className="text-xs text-white/50 font-mono mt-1 uppercase tracking-wider">Аудит CAPEX & OPEX</p>
-                    <p className="text-sm text-neutral-300 font-body font-light mt-4 leading-relaxed">
-                      Эксперт по нагрузочному тестированию и стоимости облачной инфраструктуры. Ранее — Head of AI/ML в ведущих enterprise-интеграторах. Оценивает реальную емкость ИТ-затрат.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Team Member 3 */}
-                <div className="liquid-glass rounded-2xl p-6 border border-white/5 flex flex-col justify-between min-h-[220px] hover:bg-white/[0.02] transition-colors col-span-1 md:col-span-2">
-                  <div>
-                    <h4 className="font-heading italic text-xl text-white font-medium">Старший инвестиционный аналитик</h4>
-                    <p className="text-xs text-white/50 font-mono mt-1 uppercase tracking-wider">Разработка ROI-моделей</p>
-                    <p className="text-sm text-neutral-300 font-body font-light mt-4 leading-relaxed">
-                      Специализируется на дисконтировании денежных потоков и верификации бизнес-эффекта автоматизации. Автор детальных калькуляторов экономического эффекта более чем для 30 проектов.
-                    </p>
-                  </div>
-                </div>
-
-              </div>
-            </motion.div>
-
-          </div>
-
-          {/* Quick interactive note */}
-          <div className="text-left py-4 border-t border-white/5 opacity-60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <span className="text-xs font-mono font-light tracking-wide">// НАШИ КОНСУЛЬТАНТЫ ОЦЕНИВАЮТ РЕАЛЬНУЮ ОКУПАЕМОСТЬ. ДОВЕРЯЙТЕ ЦИФРАМ, А НЕ ХАЙПУ.</span>
-            <button 
-              onClick={() => setIsContactOpen(true)}
-              className="text-xs font-semibold underline text-white hover:text-neutral-300 transition-colors cursor-pointer text-left"
-            >
-              Заказать финансовый аудит AI-процесса →
-            </button>
-          </div>
-
-        </div>
-      </section>
-
       {/* SECTION 4 — CLIENTS */}
       <section 
         id="clients" 
@@ -1038,7 +906,139 @@ export default function App() {
 
           </div>
 
-          {/* Footer strip below client cards */}
+        </div>
+      </section>
+
+      {/* SECTION 3 — ABOUT US */}
+      <section 
+        id="about" 
+        className="relative min-h-screen w-full bg-black overflow-hidden flex flex-col justify-center border-t border-white/5"
+      >
+        <div className="relative z-10 w-full max-w-7xl mx-auto px-6 md:px-16 lg:px-20 pt-28 pb-16 flex flex-col min-h-screen justify-between">
+          
+          {/* Header */}
+          <div className="mb-12 text-left">
+            <motion.div 
+              initial={{ opacity: 0, x: -10 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true, margin: '-100px' }}
+              transition={{ duration: 0.5 }}
+              className="text-xs font-mono text-neutral-400 tracking-widest uppercase mb-4"
+            >
+              // О компании и ценности
+            </motion.div>
+            
+            <motion.h2 
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-100px' }}
+              transition={{ duration: 0.6, delay: 0.1 }}
+              className="font-heading italic text-white text-4xl md:text-5.5xl lg:text-6xl tracking-tight leading-none font-medium text-left"
+            >
+              Соединяем Финансовую Прагматику <br />и AI-Инновации
+            </motion.h2>
+          </div>
+
+          {/* Grid Content */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start mt-4 mb-16">
+            
+            {/* Left Narrative Column */}
+            <motion.div 
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              className="lg:col-span-4 flex flex-col gap-6 text-left"
+            >
+              <div className="liquid-glass rounded-2xl p-6 border border-white/5">
+                <div className="flex items-center gap-3 text-white mb-4">
+                  <Calendar className="h-5 w-5 text-white/80" />
+                  <span className="font-mono text-sm tracking-wide uppercase">// ИСТОРИЯ</span>
+                </div>
+                <p className="text-sm text-neutral-300 font-body font-light leading-relaxed">
+                  AXIOM Consulting работает <span className="text-white font-medium">с 2022 года</span>. Мы начинали как бутиковое финансовое бюро для крупного ритейла и производственного сектора.
+                </p>
+                <p className="text-sm text-neutral-300 font-body font-light leading-relaxed mt-3">
+                  С развитием генеративного интеллекта мы первыми разработали комплексную методологию аудита и расчёта экономического эффекта от внедрения LLM-агентов, защищая инвестиции наших клиентов на этапе идеи.
+                </p>
+              </div>
+
+              <div className="liquid-glass rounded-2xl p-6 border border-white/5">
+                <div className="flex items-center gap-3 text-white mb-4">
+                  <Award className="h-5 w-5 text-white/80" />
+                  <span className="font-mono text-sm tracking-wide uppercase">// НАШ ФОКУС</span>
+                </div>
+                <p className="text-sm text-neutral-300 font-body font-light leading-relaxed">
+                  Никакого пуританского ИТ-словаря или завышенных ожиданий. Каждое техническое архитектурное решение оцифровывается в CAPEX, OPEX, NPV и период окупаемости. Мы не пишем код — мы управляем вашими финансовыми результатами.
+                </p>
+              </div>
+            </motion.div>
+
+            {/* Right Team Column */}
+            <motion.div 
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.3 }}
+              className="lg:col-span-8 flex flex-col gap-6 text-left"
+            >
+              <div className="flex items-center gap-3 text-white mb-2">
+                <Users className="h-5 w-5 text-white/80" />
+                <span className="font-mono text-sm tracking-wide uppercase">// КЛЮЧЕВАЯ КОМАНДА</span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                {/* Team Member 1 */}
+                <div className="liquid-glass rounded-2xl p-6 border border-white/5 flex flex-col justify-between min-h-[220px] hover:bg-white/[0.02] transition-colors">
+                  <div>
+                    <h4 className="font-heading italic text-xl text-white font-medium">Финансовый директор</h4>
+                    <p className="text-xs text-white/50 font-mono mt-1 uppercase tracking-wider">Управляющий партнер / Экс-EY</p>
+                    <p className="text-sm text-neutral-300 font-body font-light mt-4 leading-relaxed">
+                      Экс-консультант "Большой Четверки" (EY), сертифицированный финансовый аналитик (CFA). 10+ лет в корпоративных финансах и ИТ-стратегии среднего и крупного бизнеса.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Team Member 2 */}
+                <div className="liquid-glass rounded-2xl p-6 border border-white/5 flex flex-col justify-between min-h-[220px] hover:bg-white/[0.02] transition-colors">
+                  <div>
+                    <h4 className="font-heading italic text-xl text-white font-medium">Главный AI-архитектор</h4>
+                    <p className="text-xs text-white/50 font-mono mt-1 uppercase tracking-wider">Аудит CAPEX & OPEX</p>
+                    <p className="text-sm text-neutral-300 font-body font-light mt-4 leading-relaxed">
+                      Эксперт по нагрузочному тестированию и стоимости облачной инфраструктуры. Ранее — Head of AI/ML в ведущих enterprise-интеграторах. Оценивает реальную емкость ИТ-затрат.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Team Member 3 */}
+                <div className="liquid-glass rounded-2xl p-6 border border-white/5 flex flex-col justify-between min-h-[220px] hover:bg-white/[0.02] transition-colors col-span-1 md:col-span-2">
+                  <div>
+                    <h4 className="font-heading italic text-xl text-white font-medium">Старший инвестиционный аналитик</h4>
+                    <p className="text-xs text-white/50 font-mono mt-1 uppercase tracking-wider">Разработка ROI-моделей</p>
+                    <p className="text-sm text-neutral-300 font-body font-light mt-4 leading-relaxed">
+                      Специализируется на дисконтировании денежных потоков и верификации бизнес-эффекта автоматизации. Автор детальных калькуляторов экономического эффекта более чем для 30 проектов.
+                    </p>
+                  </div>
+                </div>
+
+              </div>
+            </motion.div>
+
+          </div>
+
+          {/* Quick interactive note */}
+          <div className="text-left py-4 border-t border-white/5 opacity-60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <span className="text-xs font-mono font-light tracking-wide">// НАШИ КОНСУЛЬТАНТЫ ОЦЕНИВАЮТ РЕАЛЬНУЮ ОКУПАЕМОСТЬ. ДОВЕРЯЙТЕ ЦИФРАМ, А НЕ ХАЙПУ.</span>
+            <button 
+              onClick={() => setIsContactOpen(true)}
+              className="text-xs font-semibold underline text-white hover:text-neutral-300 transition-colors cursor-pointer text-left"
+            >
+              Заказать финансовый аудит AI-процесса →
+            </button>
+          </div>
+
+          {/* Footer strip below everything */}
           <footer className="w-full flex flex-col md:flex-row items-center justify-between border-t border-white/10 pt-8 mt-16 pb-12 gap-6 text-center md:text-left select-none">
             <span className="font-heading italic text-white text-2.5xl font-medium tracking-tight">
               AXIOM
