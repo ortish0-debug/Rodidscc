@@ -27,6 +27,24 @@ export default function App() {
   // Mobile navigation drawer state
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
+  const scrollToSection = (e: React.MouseEvent, id: string, isMobile: boolean = false) => {
+    e.preventDefault();
+    if (isMobile) {
+      setIsMobileMenuOpen(false);
+      setTimeout(() => {
+        const element = document.getElementById(id);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 150);
+    } else {
+      const element = document.getElementById(id);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+  };
+  
   // Interactive Contact Drawer state
   const [isContactOpen, setIsContactOpen] = useState(false);
   const [formSubmitted, setFormSubmitted] = useState(false);
@@ -133,6 +151,7 @@ export default function App() {
           {/* Logo Brand: group for circle and label */}
           <motion.a 
             href="#hero"
+            onClick={(e) => scrollToSection(e, 'hero')}
             initial={{ opacity: 0, x: -25 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.5, ease: 'easeOut' }}
@@ -154,10 +173,10 @@ export default function App() {
             transition={{ duration: 0.6, delay: 0.2, ease: 'easeOut' }}
             className="hidden md:flex items-center gap-1 liquid-glass rounded-full px-1.5 py-1.5 backdrop-blur-md"
           >
-            <a href="#hero" className="px-4 py-2 text-sm font-medium text-white/90 hover:text-white transition-colors">Главная</a>
-            <a href="#services" className="px-4 py-2 text-sm font-medium text-white/90 hover:text-white transition-colors">Услуги</a>
-            <a href="#clients" className="px-4 py-2 text-sm font-medium text-white/90 hover:text-white transition-colors">Клиенты</a>
-            <a href="#about" className="px-4 py-2 text-sm font-medium text-white/90 hover:text-white transition-colors">О нас</a>
+            <a href="#hero" onClick={(e) => scrollToSection(e, 'hero')} className="px-4 py-2 text-sm font-medium text-white/90 hover:text-white transition-colors">Главная</a>
+            <a href="#services" onClick={(e) => scrollToSection(e, 'services')} className="px-4 py-2 text-sm font-medium text-white/90 hover:text-white transition-colors">Услуги</a>
+            <a href="#clients" onClick={(e) => scrollToSection(e, 'clients')} className="px-4 py-2 text-sm font-medium text-white/90 hover:text-white transition-colors">Клиенты</a>
+            <a href="#about" onClick={(e) => scrollToSection(e, 'about')} className="px-4 py-2 text-sm font-medium text-white/90 hover:text-white transition-colors">О нас</a>
             <button 
               onClick={() => setIsContactOpen(true)}
               className="px-4 py-2 text-sm font-medium text-white/90 hover:text-white transition-colors"
@@ -202,28 +221,28 @@ export default function App() {
           >
             <a 
               href="#hero" 
-              onClick={() => setIsMobileMenuOpen(false)}
+              onClick={(e) => scrollToSection(e, 'hero', true)}
               className="py-3 px-4 rounded-xl hover:bg-white/5 text-lg font-light tracking-wide text-white"
             >
               Главная
             </a>
             <a 
               href="#services" 
-              onClick={() => setIsMobileMenuOpen(false)}
+              onClick={(e) => scrollToSection(e, 'services', true)}
               className="py-3 px-4 rounded-xl hover:bg-white/5 text-lg font-light tracking-wide text-white"
             >
               Услуги
             </a>
             <a 
               href="#clients" 
-              onClick={() => setIsMobileMenuOpen(false)}
+              onClick={(e) => scrollToSection(e, 'clients', true)}
               className="py-3 px-4 rounded-xl hover:bg-white/5 text-lg font-light tracking-wide text-white"
             >
               Клиенты
             </a>
             <a 
               href="#about" 
-              onClick={() => setIsMobileMenuOpen(false)}
+              onClick={(e) => scrollToSection(e, 'about', true)}
               className="py-3 px-4 rounded-xl hover:bg-white/5 text-lg font-light tracking-wide text-white"
             >
               О нас
@@ -327,6 +346,7 @@ export default function App() {
             {/* Secondary Link button */}
             <a 
               href="#clients"
+              onClick={(e) => scrollToSection(e, 'clients')}
               className="group inline-flex items-center justify-center gap-2 text-sm font-semibold text-neutral-300 hover:text-white transition-colors py-2"
             >
               Смотреть кейсы
