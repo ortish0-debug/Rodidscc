@@ -63,6 +63,7 @@ export default function App() {
   const [formData, setFormData] = useState({
     name: '',
     company: '',
+    phone: '',
     contact: '',
     service: 'AI внедрение',
     message: ''
@@ -72,7 +73,7 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(false);
-  const [sendError, setSendError] = useState<string | null>(null);
+  const [sendError, setSendError] = useState<{ message: string; isTelegramUnstarted?: boolean } | null>(null);
 
   // Lock body scrolling ONLY when the interactive contact side drawer is open.
   // We use standard 'overflow: hidden' and 'touch-action: none' directly on the body 
@@ -119,30 +120,34 @@ export default function App() {
     setSendError(null);
 
     try {
-      let currentToken = accessToken;
-      
-      // If the client is not authenticated with Google, trigger Google Auth
-      if (!currentToken) {
-        const loginResult = await googleSignIn();
-        if (loginResult) {
-          setUser(loginResult.user);
-          setAccessToken(loginResult.accessToken);
-          currentToken = loginResult.accessToken;
-        } else {
-          throw new Error('Требуется авторизация через Google аккаунт для отправки заявки.');
-        }
-      }
+      const response = await fetch('/api/contact', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(formData)
+      });
 
-      if (currentToken) {
-        // Send actual email via Gmail API to ortish0@gmail.com on behalf of user
-        await sendApplicationEmail(currentToken, formData);
-        
+      const data = await response.json();
+
+      if (!response.ok) {
+        if (response.status === 412 || data.error === 'telegram_not_started') {
+          setSendError({
+            message: data.message || 'Бот не активирован в Telegram.',
+            isTelegramUnstarted: true
+          });
+        } else {
+          throw new Error(data.message || 'Ошибка отправки заявки.');
+        }
+      } else {
         // Success state persistence
         setFormSubmitted(true);
       }
     } catch (err: any) {
-      console.error('Ошибка отправки заявки через Gmail:', err);
-      setSendError(err.message || 'Произошла ошибка при отправке сообщения через службу Gmail.');
+      console.error('Ошибка отправки заявки:', err);
+      setSendError({
+        message: err.message || 'Произошла ошибка при отправке заявки. Пожалуйста, попробуйте еще раз.'
+      });
     } finally {
       setIsAuthLoading(false);
     }
@@ -1214,6 +1219,21 @@ export default function App() {
                         />
                       </div>
 
+                      {/* Phone field (Optional) */}
+                      <div>
+                        <label className="block text-xs font-mono text-neutral-400 mb-1.5 uppercase tracking-wide">
+                          Телефон (необязательно)
+                        </label>
+                        <input 
+                          type="tel" 
+                          name="phone"
+                          value={formData.phone}
+                          onChange={handleInputChange}
+                          placeholder="+7 (999) 000-00-00"
+                          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-white/30 transition-colors placeholder:text-white/20"
+                        />
+                      </div>
+
                       {/* Service Category Selector */}
                       <div>
                         <label className="block text-xs font-mono text-neutral-400 mb-1.5 uppercase tracking-wide">
@@ -1252,38 +1272,27 @@ export default function App() {
                         />
                       </div>
 
-                      {/* Gmail Integration Status Block */}
+                      {/* Integration Status Block */}
                       <div className="mt-2.5 flex flex-col gap-3">
-                        {user && accessToken ? (
-                          <div className="flex items-center justify-between bg-white/[0.04] border border-white/5 rounded-xl px-4 py-3 text-xs">
-                            <div className="flex items-center gap-2">
-                              <span className="relative flex h-2 w-2">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                              </span>
-                              <span className="text-neutral-300">
-                                Отправитель: <strong className="text-white font-medium">{user.email}</strong>
-                              </span>
-                            </div>
-                            <button 
-                              type="button" 
-                              onClick={handleLogout} 
-                              className="text-neutral-400 hover:text-white transition-colors flex items-center gap-1.5 cursor-pointer font-mono text-[10px] uppercase tracking-wider bg-white/5 hover:bg-white/10 px-2 py-1 rounded"
-                            >
-                              <LogOut className="h-3 w-3" />
-                              <span>Выйти</span>
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="bg-white/[0.03] border border-white/5 rounded-xl p-4 text-xs text-neutral-400 leading-relaxed font-body">
-                            Для автоматической доставки и защиты от спама мы используем прямую отправку через <strong className="text-white font-semibold">Gmail REST API</strong>. <br />
-                            При отправке откроется окно авторизации Google. Заявка уйдет автоматически с вашего ящика на адрес <strong className="text-white font-semibold">ortish0@gmail.com</strong>.
-                          </div>
-                        )}
+                        <div className="bg-white/[0.03] border border-white/5 rounded-xl p-4 text-xs text-neutral-400 leading-relaxed font-body">
+                          Все заявки мгновенно регистрируются во внутренней CRM-системе и пересылаются в Telegram-бот <strong className="text-white font-semibold">@Axiomconsultbot</strong> для моментального уведомления руководства.
+                        </div>
 
                         {sendError && (
                           <div className="bg-red-950/40 border border-red-900/50 text-red-200 text-xs rounded-xl p-4 leading-normal font-sans text-left">
-                            <strong>Ошибка:</strong> {sendError}
+                            <strong>Ошибка:</strong> {sendError.message}
+                            {sendError.isTelegramUnstarted && (
+                              <div className="mt-3">
+                                <a 
+                                  href="https://t.me/Axiomconsultbot" 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1.5 bg-white text-black text-[11px] font-mono font-bold uppercase tracking-wider px-3.5 py-2 rounded-lg hover:bg-neutral-200 transition-all"
+                                >
+                                  👉 Запустить бота в Telegram
+                                </a>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -1298,17 +1307,12 @@ export default function App() {
                           {isAuthLoading ? (
                             <>
                               <span className="h-4 w-4 border-2 border-black border-t-transparent rounded-full animate-spin"></span>
-                              <span>Отправка через Gmail...</span>
-                            </>
-                          ) : user && accessToken ? (
-                            <>
-                              <span>Отправить запрос</span>
-                              <ArrowUpRight className="h-5 w-5 stroke-[2.5]" />
+                              <span>Отправка заявки...</span>
                             </>
                           ) : (
                             <>
-                              <span>Войти через Google и отправить</span>
-                              <Mail className="h-4.5 w-4.5 stroke-[2]" />
+                              <span>Отправить запрос</span>
+                              <ArrowUpRight className="h-5 w-5 stroke-[2.5]" />
                             </>
                           )}
                         </button>
