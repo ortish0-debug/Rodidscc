@@ -74,27 +74,22 @@ export default function App() {
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
 
-  // Lock body scrolling when either mobile menu or contact drawer is open.
-  // This uses fixed full-width layout strategy to block background scrolling 
-  // and prevent Safari from hiding/restoring dynamic address bar heights, which causes elements to jump.
+  // Lock body scrolling ONLY when the interactive contact side drawer is open.
+  // We use standard 'overflow: hidden' and 'touch-action: none' directly on the body 
+  // which does not affect layout offsets, prevents jumps, and has zero chance of turning the screen black or tearing.
   useEffect(() => {
-    if (isMobileMenuOpen || isContactOpen) {
-      const scrollY = window.scrollY;
-      document.body.style.top = `-${scrollY}px`;
-      document.body.classList.add('scroll-locked');
+    if (isContactOpen) {
+      document.body.style.overflow = 'hidden';
+      document.body.style.touchAction = 'none';
     } else {
-      const scrollY = document.body.style.top;
-      document.body.classList.remove('scroll-locked');
-      document.body.style.top = '';
-      if (scrollY) {
-        window.scrollTo(0, parseInt(scrollY || '0', 10) * -1);
-      }
+      document.body.style.overflow = '';
+      document.body.style.touchAction = '';
     }
     return () => {
-      document.body.classList.remove('scroll-locked');
-      document.body.style.top = '';
+      document.body.style.overflow = '';
+      document.body.style.touchAction = '';
     };
-  }, [isMobileMenuOpen, isContactOpen]);
+  }, [isContactOpen]);
 
   // Synchronize Google Auth session state on load
   useEffect(() => {
