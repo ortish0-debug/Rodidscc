@@ -33,16 +33,27 @@ export default function App() {
     if (element) {
       if (isMobile) {
         setIsMobileMenuOpen(false);
+        // Delay scrolling on mobile so that the menu exit animation has completed.
+        // This solves GPU conflicts between transforming a translucent backdrop-filter drawer
+        // and animating a layout scroll, eliminating browser jumping & flickering.
+        setTimeout(() => {
+          const headerOffset = 95;
+          const elementPosition = element.getBoundingClientRect().top;
+          const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+          window.scrollTo({
+            top: offsetPosition,
+            behavior: 'smooth'
+          });
+        }, 180);
+      } else {
+        const headerOffset = 90; // offset to not hide the heading under fixed nav
+        const elementPosition = element.getBoundingClientRect().top;
+        const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+        window.scrollTo({
+          top: offsetPosition,
+          behavior: 'smooth'
+        });
       }
-      
-      const headerOffset = 90; // offset to not hide the heading under fixed nav
-      const elementPosition = element.getBoundingClientRect().top;
-      const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
-      
-      window.scrollTo({
-        top: offsetPosition,
-        behavior: 'smooth'
-      });
     }
   };
   
@@ -62,6 +73,28 @@ export default function App() {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+
+  // Lock body scrolling when either mobile menu or contact drawer is open.
+  // This uses fixed full-width layout strategy to block background scrolling 
+  // and prevent Safari from hiding/restoring dynamic address bar heights, which causes elements to jump.
+  useEffect(() => {
+    if (isMobileMenuOpen || isContactOpen) {
+      const scrollY = window.scrollY;
+      document.body.style.top = `-${scrollY}px`;
+      document.body.classList.add('scroll-locked');
+    } else {
+      const scrollY = document.body.style.top;
+      document.body.classList.remove('scroll-locked');
+      document.body.style.top = '';
+      if (scrollY) {
+        window.scrollTo(0, parseInt(scrollY || '0', 10) * -1);
+      }
+    }
+    return () => {
+      document.body.classList.remove('scroll-locked');
+      document.body.style.top = '';
+    };
+  }, [isMobileMenuOpen, isContactOpen]);
 
   // Synchronize Google Auth session state on load
   useEffect(() => {
@@ -214,10 +247,10 @@ export default function App() {
       <AnimatePresence>
         {isMobileMenuOpen && (
           <motion.div 
-            initial={{ opacity: 0, y: -20 }}
+            initial={{ opacity: 0, y: -12 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.3 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: 0.15, ease: 'easeOut' }}
             className="fixed top-20 left-4 right-4 z-40 md:hidden liquid-glass-strong rounded-3xl p-6 flex flex-col gap-4 border border-white/5"
           >
             <a 
