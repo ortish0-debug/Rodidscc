@@ -2,10 +2,6 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Barlow:wght@300;400;500;600&family=Instrument+Serif:ital,wght@0,400;1,400&display=swap');
 
-html {
-  scroll-behavior: smooth;
-}
-
 @theme {
   --font-heading: "Instrument Serif", serif;
   --font-body: "Barlow", sans-serif;
@@ -81,5 +77,4 @@ html, body {
   margin: 0;
   padding: 0;
   overflow-x: hidden;
-  scroll-behavior: smooth;
 }

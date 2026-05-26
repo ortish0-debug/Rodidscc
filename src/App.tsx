@@ -29,19 +29,20 @@ export default function App() {
   
   const scrollToSection = (e: React.MouseEvent, id: string, isMobile: boolean = false) => {
     e.preventDefault();
-    if (isMobile) {
-      setIsMobileMenuOpen(false);
-      setTimeout(() => {
-        const element = document.getElementById(id);
-        if (element) {
-          element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-      }, 150);
-    } else {
-      const element = document.getElementById(id);
-      if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const element = document.getElementById(id);
+    if (element) {
+      if (isMobile) {
+        setIsMobileMenuOpen(false);
       }
+      
+      const headerOffset = 90; // offset to not hide the heading under fixed nav
+      const elementPosition = element.getBoundingClientRect().top;
+      const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+      
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: 'smooth'
+      });
     }
   };
   
@@ -1092,34 +1093,39 @@ export default function App() {
               className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             />
 
-            {/* Slider Drawer container */}
+            {/* Slider Drawer container — Non-scrolling body with a fixed height and flex-col layout */}
             <motion.div 
               initial={{ x: '100%' }}
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 180 }}
-              className="relative w-full max-w-lg h-full liquid-glass-strong border-l border-white/10 p-8 md:p-10 flex flex-col justify-between overflow-y-auto"
-              style={{ background: 'rgba(5, 5, 5, 0.85)' }}
+              className="relative w-full max-w-lg h-full liquid-glass-strong border-l border-white/10 flex flex-col justify-between"
+              style={{ background: 'rgba(5, 5, 5, 0.96)' }}
             >
-              {/* Close Button */}
-              <button 
-                onClick={resetForm}
-                className="absolute top-5 right-5 w-10 h-10 rounded-full liquid-glass flex items-center justify-center text-white/70 hover:text-white hover:scale-105 transition-all duration-200"
-              >
-                <X className="h-5 w-5" />
-              </button>
-
-              {/* Main Content Layout */}
-              <div className="flex-1 mt-10">
-                <div className="flex items-center gap-2.5 mb-4 text-xs font-mono text-neutral-400 uppercase">
+              {/* Fixed Header Bar at the top — closes instantly, never scrolls away! */}
+              <div className="flex items-center justify-between p-6 md:p-8 border-b border-white/10 flex-shrink-0 z-10 bg-black/30 backdrop-blur-sm">
+                <div className="flex items-center gap-2.5 text-xs font-mono text-neutral-400 uppercase">
                   <Activity className="h-4.5 w-4.5 text-white animate-pulse" />
                   <span>// Обратная связь</span>
                 </div>
+                
+                {/* Clear prominent close button */}
+                <button 
+                  type="button"
+                  onClick={resetForm}
+                  className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer"
+                  aria-label="Закрыть форму"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
 
-                <h3 className="font-heading italic text-white text-4xl mb-3 leading-none font-medium">
+              {/* Main Content Layout — Independently Scrollable Container */}
+              <div className="flex-1 overflow-y-auto p-6 md:p-8">
+                <h3 className="font-heading italic text-white text-4.5xl mb-3 leading-none font-medium text-left">
                   Начать проект с AXIOM
                 </h3>
-                <p className="text-sm text-neutral-300 font-body font-light mb-8 leading-relaxed max-w-[40ch]">
+                <p className="text-sm text-neutral-300 font-body font-light mb-8 leading-relaxed max-w-[40ch] text-left">
                   Заполните форму ниже. Наш ведущий консультант свяжется с вами для подробного разбора в течение 2 часов.
                 </p>
 
@@ -1254,29 +1260,40 @@ export default function App() {
                         )}
                       </div>
 
-                      {/* Submit form button */}
-                      <button 
-                        type="submit" 
-                        disabled={isAuthLoading}
-                        className="w-full bg-white text-black font-semibold py-4 rounded-xl flex items-center justify-center gap-2 mt-4 hover:bg-neutral-200 transition-colors cursor-pointer active:scale-98 disabled:opacity-50 disabled:pointer-events-none"
-                      >
-                        {isAuthLoading ? (
-                          <>
-                            <span className="h-4 w-4 border-2 border-black border-t-transparent rounded-full animate-spin"></span>
-                            <span>Отправка через Gmail...</span>
-                          </>
-                        ) : user && accessToken ? (
-                          <>
-                            <span>Отправить запрос</span>
-                            <ArrowUpRight className="h-5 w-5 stroke-[2.5]" />
-                          </>
-                        ) : (
-                          <>
-                            <span>Войти через Google и отправить</span>
-                            <Mail className="h-4.5 w-4.5 stroke-[2]" />
-                          </>
-                        )}
-                      </button>
+                      {/* Submit and Close Buttons Container */}
+                      <div className="flex flex-col gap-3 mt-4">
+                        <button 
+                          type="submit" 
+                          disabled={isAuthLoading}
+                          className="w-full bg-white text-black font-semibold py-4 rounded-xl flex items-center justify-center gap-2 hover:bg-neutral-200 transition-colors cursor-pointer active:scale-98 disabled:opacity-50 disabled:pointer-events-none"
+                        >
+                          {isAuthLoading ? (
+                            <>
+                              <span className="h-4 w-4 border-2 border-black border-t-transparent rounded-full animate-spin"></span>
+                              <span>Отправка через Gmail...</span>
+                            </>
+                          ) : user && accessToken ? (
+                            <>
+                              <span>Отправить запрос</span>
+                              <ArrowUpRight className="h-5 w-5 stroke-[2.5]" />
+                            </>
+                          ) : (
+                            <>
+                              <span>Войти через Google и отправить</span>
+                              <Mail className="h-4.5 w-4.5 stroke-[2]" />
+                            </>
+                          )}
+                        </button>
+
+                        {/* Explicit button at the bottom to close the form easily */}
+                        <button 
+                          type="button"
+                          onClick={resetForm}
+                          className="w-full bg-white/5 hover:bg-white/10 text-white/90 border border-white/10 py-4 rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5 active:scale-98 transition-all cursor-pointer"
+                        >
+                          Закрыть форму
+                        </button>
+                      </div>
                     </motion.form>
                   ) : (
                     <motion.div 
@@ -1295,13 +1312,22 @@ export default function App() {
                       <p className="text-sm text-neutral-300 font-body font-light max-w-[28ch] leading-relaxed">
                         Спасибо, {formData.name || 'Коллега'}! Ваша заявка принята. Консультант свяжется с вами в течение 2 часов.
                       </p>
+
+                      {/* Clear and direct button to return and close drawer */}
+                      <button 
+                        type="button"
+                        onClick={resetForm}
+                        className="mt-4 px-8 py-3.5 bg-white text-black hover:bg-neutral-200 hover:scale-105 active:scale-95 text-xs font-mono font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-lg"
+                      >
+                        Вернуться на сайт
+                      </button>
                     </motion.div>
                   )}
                 </AnimatePresence>
               </div>
 
-              {/* Informative credentials footer */}
-              <div className="border-t border-white/5 pt-6 mt-10 text-left">
+              {/* Informative credentials footer — fixed block below scrolling section */}
+              <div className="border-t border-white/5 p-6 md:p-8 text-left bg-black/20 flex-shrink-0">
                 <div className="flex items-center gap-3 text-white/50 mb-1">
                   <MessageSquare className="h-4 w-4" />
                   <span className="text-[11px] font-mono tracking-wider uppercase">AXIOM CONSULTING HEADQUARTERS</span>
