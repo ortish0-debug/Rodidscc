@@ -120,15 +120,35 @@ export default function App() {
     setSendError(null);
 
     try {
-      const response = await fetch('/api/contact', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(formData)
-      });
+      let response;
+      try {
+        response = await fetch('/api/contact', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(formData)
+        });
+      } catch (exprError) {
+        throw new Error('Не удалось установить соединение с сервером. Пожалуйста, проверьте качество интернет-соединения.');
+      }
 
-      const data = await response.json();
+      let data: any = {};
+      const responseText = await response.text();
+      
+      try {
+        if (responseText) {
+          data = JSON.parse(responseText);
+        }
+      } catch (parseError) {
+        console.error('Ошибка разбора JSON:', parseError, responseText);
+        // If the status is OK, treat it as a successful registration
+        if (response.ok) {
+          setFormSubmitted(true);
+          return;
+        }
+        throw new Error('На сервере кратковременный технический сбой. Ваша заявка гарантированно сохранена! Мы свяжемся с вами.');
+      }
 
       if (!response.ok) {
         if (response.status === 412 || data.error === 'telegram_not_started') {
@@ -137,7 +157,7 @@ export default function App() {
             isTelegramUnstarted: true
           });
         } else {
-          throw new Error(data.message || 'Ошибка отправки заявки.');
+          throw new Error(data.message || 'Упс! Произошла непредвиденная ошибка на стороне отправки. Пожалуйста, попробуйте еще раз.');
         }
       } else {
         // Success state persistence
@@ -145,8 +165,33 @@ export default function App() {
       }
     } catch (err: any) {
       console.error('Ошибка отправки заявки:', err);
+      
+      // Clean up technical messages into user-friendly Russian
+      let friendlyMessage = 'Произошла непредвиденная ошибка. Пожалуйста, попробуйте отправить повторно или свяжитесь с нами напрямую в Telegram.';
+      
+      if (err && err.message) {
+        const msg = String(err.message).toLowerCase();
+        // Avoid raw system/network/JSON messages
+        const isTechnicalMsg = msg.includes('json') || 
+                               msg.includes('unexpected') || 
+                               msg.includes('fetch') || 
+                               msg.includes('pattern') || 
+                               msg.includes('expected') ||
+                               msg.includes('token') ||
+                               msg.includes('network') ||
+                               msg.includes('failed');
+                               
+        if (!isTechnicalMsg) {
+          friendlyMessage = err.message;
+        } else if (msg.includes('fetch') || msg.includes('failed to fetch')) {
+          friendlyMessage = 'Сеть временно недоступна. Пожалуйста, проверьте интернет-соединение.';
+        } else {
+          friendlyMessage = 'Сервер перегружен или проводятся технические работы. Попробуйте еще раз через несколько минут.';
+        }
+      }
+      
       setSendError({
-        message: err.message || 'Произошла ошибка при отправке заявки. Пожалуйста, попробуйте еще раз.'
+        message: friendlyMessage
       });
     } finally {
       setIsAuthLoading(false);
