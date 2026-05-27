@@ -122,11 +122,8 @@ export default function App() {
     try {
       let response;
       try {
-        const apiBase = window.location.hostname === 'localhost' || window.location.hostname.includes('europe-west2.run.app')
-          ? ''
-          : 'https://ais-pre-tprmmslawen3lvvn6x5oby-449619546700.europe-west2.run.app';
-
-        response = await fetch(`${apiBase}/api/contact`, {
+        // Использовать относительный путь для полной интеграции на хостинге
+        response = await fetch('/api/contact', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -1324,7 +1321,7 @@ export default function App() {
                       {/* Integration Status Block */}
                       <div className="mt-2.5 flex flex-col gap-3">
                         <div className="bg-white/[0.03] border border-white/5 rounded-xl p-4 text-xs text-neutral-400 leading-relaxed font-body">
-                          Все заявки мгновенно регистрируются во внутренней CRM-системе и пересылаются в Telegram-бот <strong className="text-white font-semibold">@Axiomconsultbot</strong> для моментального уведомления руководства.
+                          Все заявки мгновенно регистрируются во внутренней CRM-системе и направляются руководству на <strong className="text-white font-semibold">электронную почту SMTP</strong> или в <strong className="text-white font-semibold">Telegram</strong> для моментальной обработки.
                         </div>
 
                         {sendError && (
