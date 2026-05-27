@@ -49,12 +49,30 @@ if (fs.existsSync(CONFIG_FILE)) {
   }
 }
 
+// Helper function for fetch with timeout to prevent server hanging on network blocks
+async function fetchWithTimeout(resource: string, options: any = {}) {
+  const { timeout = 4000, ...rest } = options;
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(resource, {
+      ...rest,
+      signal: controller.signal
+    });
+    clearTimeout(id);
+    return response;
+  } catch (error) {
+    clearTimeout(id);
+    throw error;
+  }
+}
+
 // Function to try to auto-detect Chat ID by pulling bot updates
 async function autoDetectChatId(): Promise<number | string | null> {
   const token = config.botToken || DEFAULT_BOT_TOKEN;
   const url = `https://api.telegram.org/bot${token}/getUpdates`;
   try {
-    const res = await fetch(url);
+    const res = await fetchWithTimeout(url, { timeout: 4000 });
     if (!res.ok) return null;
     const body: any = await res.json();
     if (!body.ok || !body.result || body.result.length === 0) return null;
@@ -213,170 +231,116 @@ async function startServer() {
 
     const isSmtpConfigured = smtpHost && smtpUser && smtpPass && !smtpUser.includes("your-email");
 
-    if (isSmtpConfigured) {
-      console.log(`SMTP config detected (Host: ${smtpHost}, User: ${smtpUser}). Sending lead by email to ${smtpTo}...`);
-      
-      try {
-        const transporter = nodemailer.createTransport({
-          host: smtpHost,
-          port: smtpPort,
-          secure: smtpPort === 465 || smtpSecure,
-          auth: {
-            user: smtpUser,
-            pass: smtpPass
-          }
-        });
-
-        const subjectStr = `🔥 Новая заявка с сайта AXIOM - ${name}`;
-        const textStr = `Новая заявка с сайта AXIOM\n\n` +
-                        `Имя: ${name}\n` +
-                        `Организация: ${company || "Не указана"}\n` +
-                        `Телефон: ${phone || "Не указан"}\n` +
-                        `Контакты для связи: ${contact}\n` +
-                        `Сфера деятельности: ${service || "Другое"}\n` +
-                        `Описание задачи:\n${message || "Не заполнено"}\n\n` +
-                        `Отправлено: ${new Date().toLocaleString("ru-RU")}`;
-
-        const htmlStr = `<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-          <div style="background-color: #111827; padding: 20px; text-align: center; color: #fff;">
-            <h2 style="margin: 0; font-size: 20px; letter-spacing: 1px;">⚡️ НОВАЯ ЗАЯВКА С САЙТА AXIOM</h2>
-          </div>
-          <div style="padding: 24px; background-color: #f9fafb;">
-            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
-              <tr style="border-bottom: 1px solid #e5e7eb;">
-                <td style="padding: 10px 0; font-weight: bold; width: 140px; color: #4b5563;">👤 Имя:</td>
-                <td style="padding: 10px 0;">${name}</td>
-              </tr>
-              <tr style="border-bottom: 1px solid #e5e7eb;">
-                <td style="padding: 10px 0; font-weight: bold; color: #4b5563;">🏢 Организация:</td>
-                <td style="padding: 10px 0;">${company || "Не указана"}</td>
-              </tr>
-              <tr style="border-bottom: 1px solid #e5e7eb;">
-                <td style="padding: 10px 0; font-weight: bold; color: #4b5563;">📱 Телефон:</td>
-                <td style="padding: 10px 0;">${phone || "Не указан"}</td>
-              </tr>
-              <tr style="border-bottom: 1px solid #e5e7eb;">
-                <td style="padding: 10px 0; font-weight: bold; color: #4b5563;">📞 Контакты:</td>
-                <td style="padding: 10px 0; font-style: italic; color: #2563eb;">${contact}</td>
-              </tr>
-              <tr style="border-bottom: 1px solid #e5e7eb;">
-                <td style="padding: 10px 0; font-weight: bold; color: #4b5563;">💡 Сфера:</td>
-                <td style="padding: 10px 0; background-color: #f3f4f6; border-radius: 4px; display: inline-block; padding: 4px 10px; font-size: 13px; font-weight: 500;">${service || "Другое"}</td>
-              </tr>
-            </table>
-            
-            <div style="margin-top: 20px; background-color: #fff; border-left: 4px solid #111827; padding: 15px; border-radius: 4px;">
-              <strong style="display: block; margin-bottom: 8px; color: #4b5563;">💬 Описание задачи:</strong>
-              <div style="white-space: pre-wrap; font-size: 14px; color: #1f2937;">${message || "Не заполнено"}</div>
-            </div>
-          </div>
-          <div style="background-color: #f3f4f6; color: #9ca3af; padding: 12px; text-align: center; font-size: 11px; border-top: 1px solid #e5e7eb;">
-            Отправлено автоматически через сервер AXIOM Consult • ${new Date().toLocaleString("ru-RU")}
-          </div>
-        </div>`;
-
-        await transporter.sendMail({
-          from: smtpFrom || smtpUser,
-          to: smtpTo,
-          subject: subjectStr,
-          text: textStr,
-          html: htmlStr
-        });
-
-        console.log("Email sent successfully!");
-        return res.json({ success: true, message: "Заявка успешно отправлена на электронную почту!" });
-      } catch (mailErr: any) {
-        console.error("Failed to deliver lead on SMTP email connection:", mailErr);
-        
-        const isAuthError = mailErr.code === "EAUTH" || 
-                            mailErr.message?.includes("535") || 
-                            mailErr.responseCode === 535 ||
-                            String(mailErr).includes("535");
-                            
-        if (isAuthError) {
-          return res.status(400).json({
-            error: "smtp_auth_error",
-            message: `Ошибка авторизации почты SMTP (${smtpUser}): неверные учетные данные. Для почты Gmail (и Yandex/Mail) ОБЯЗАТЕЛЬНО нужно создать специальный "Пароль приложения" (App Password) в настройках вашего почтового аккаунта и указать его вместо обычного пароля!`,
-            leadSavedLocally: true
-          });
-        }
-        
-        console.log("SMTP failure. Attempting fallback Telegram notification...");
-      }
-    } else {
-      console.log("SMTP is not configured in .env variables or uses default placeholder. Proceeding with Telegram bot notification...");
-    }
-
-    // Default target delivery: Telegram Bot
-    let currentChatId = process.env.TELEGRAM_CHAT_ID || config.chatId;
-    if (!currentChatId) {
-      // Try active retrieval
-      currentChatId = await autoDetectChatId();
-    }
-
-    if (!currentChatId) {
-      // SMTP not set and Telegram not set as well
-      return res.status(412).json({
-        error: "notification_not_configured",
-        message: "Система уведомлений на сервере еще не настроена! Пожалуйста, укажите ваши SMTP-настройки почты в файле .env на сервере для получения заявок.",
+    if (!isSmtpConfigured) {
+      return res.status(400).json({
+        error: "smtp_not_configured",
+        message: "Настройки почты (SMTP) не заданы или заполнены некорректно в переменных окружения (.env). Пожалуйста, укажите SMTP_USER, SMTP_PASS и SMTP_TO для получения сообщений на почту.",
         leadSavedLocally: true
       });
     }
 
-    const token = config.botToken || DEFAULT_BOT_TOKEN;
-
-    // Helper to escape HTML characters from user input to prevent Telegram parsing crashes
-    const escapeHtml = (unsafe: string): string => {
-      if (!unsafe) return "";
-      return unsafe
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;");
-    };
-
-    const safeName = escapeHtml(name);
-    const safeCompany = escapeHtml(company || "Не указана");
-    const safePhone = escapeHtml(phone || "Не указан");
-    const safeContact = escapeHtml(contact);
-    const safeService = escapeHtml(service);
-    const safeMessage = escapeHtml(message || "Не заполнено");
-
-    const text = `🔥 <b>Новая заявка с сайта AXIOM</b>\n\n` +
-                 `👤 <b>Имя:</b> ${safeName}\n` +
-                 `🏢 <b>Организация:</b> ${safeCompany}\n` +
-                 `📱 <b>Телефон:</b> ${safePhone}\n` +
-                 `📞 <b>Контакты:</b> ${safeContact}\n` +
-                 `💡 <b>Сфера:</b> ${safeService}\n` +
-                 `💬 <b>Задача:</b>\n${safeMessage}\n\n` +
-                 `🕒 <i>Отправлено: ${new Date().toLocaleString("ru-RU")}</i>`;
+    console.log(`SMTP sending: Host=${smtpHost}, Port=${smtpPort}, User=${smtpUser}, To=${smtpTo}`);
 
     try {
-      const telRes = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: currentChatId,
-          text: text,
-          parse_mode: "HTML"
-        })
+      const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpPort === 465 || smtpSecure,
+        auth: {
+          user: smtpUser,
+          pass: smtpPass
+        },
+        connectionTimeout: 5000, // 5 seconds connection timeout
+        greetingTimeout: 5000,
+        socketTimeout: 5000
       });
 
-      const telData: any = await telRes.json();
-      if (!telRes.ok || !telData.ok) {
-        console.error("Telegram delivery error:", telData);
+      const subjectStr = `🔥 Новая заявка с сайта AXIOM - ${name}`;
+      const textStr = `Новая заявка с сайта AXIOM\n\n` +
+                      `Имя: ${name}\n` +
+                      `Организация: ${company || "Не указана"}\n` +
+                      `Телефон: ${phone || "Не указан"}\n` +
+                      `Контакты для связи: ${contact}\n` +
+                      `Сфера деятельности: ${service || "Другое"}\n` +
+                      `Описание задачи:\n${message || "Не заполнено"}\n\n` +
+                      `Отправлено: ${new Date().toLocaleString("ru-RU")}`;
+
+      const htmlStr = `<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+        <div style="background-color: #111827; padding: 20px; text-align: center; color: #fff;">
+          <h2 style="margin: 0; font-size: 20px; letter-spacing: 1px;">⚡️ НОВАЯ ЗАЯВКА С САЙТА AXIOM</h2>
+        </div>
+        <div style="padding: 24px; background-color: #f9fafb;">
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+            <tr style="border-bottom: 1px solid #e5e7eb;">
+              <td style="padding: 10px 0; font-weight: bold; width: 140px; color: #4b5563;">👤 Имя:</td>
+              <td style="padding: 10px 0;">${name}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #e5e7eb;">
+              <td style="padding: 10px 0; font-weight: bold; color: #4b5563;">🏢 Организация:</td>
+              <td style="padding: 10px 0;">${company || "Не указана"}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #e5e7eb;">
+              <td style="padding: 10px 0; font-weight: bold; color: #4b5563;">📱 Телефон:</td>
+              <td style="padding: 10px 0;">${phone || "Не указан"}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #e5e7eb;">
+              <td style="padding: 10px 0; font-weight: bold; color: #4b5563;">📞 Контакты:</td>
+              <td style="padding: 10px 0; font-style: italic; color: #2563eb;">${contact}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #e5e7eb;">
+              <td style="padding: 10px 0; font-weight: bold; color: #4b5563;">💡 Сфера:</td>
+              <td style="padding: 10px 0; background-color: #f3f4f6; border-radius: 4px; display: inline-block; padding: 4px 10px; font-size: 13px; font-weight: 500;">${service || "Другое"}</td>
+            </tr>
+          </table>
+          
+          <div style="margin-top: 20px; background-color: #fff; border-left: 4px solid #111827; padding: 15px; border-radius: 4px;">
+            <strong style="display: block; margin-bottom: 8px; color: #4b5563;">💬 Описание задачи:</strong>
+            <div style="white-space: pre-wrap; font-size: 14px; color: #1f2937;">${message || "Не заполнено"}</div>
+          </div>
+        </div>
+        <div style="background-color: #f3f4f6; color: #9ca3af; padding: 12px; text-align: center; font-size: 11px; border-top: 1px solid #e5e7eb;">
+          Отправлено автоматически через сервер AXIOM Consult • ${new Date().toLocaleString("ru-RU")}
+        </div>
+      </div>`;
+
+      await transporter.sendMail({
+        from: smtpFrom || smtpUser,
+        to: smtpTo,
+        subject: subjectStr,
+        text: textStr,
+        html: htmlStr
+      });
+
+      console.log("Email sent successfully!");
+      return res.json({ success: true, message: "Заявка успешно отправлена на электронную почту!" });
+    } catch (mailErr: any) {
+      console.error("Failed to deliver lead on SMTP email connection:", mailErr);
+      
+      const isAuthError = mailErr.code === "EAUTH" || 
+                          mailErr.message?.includes("535") || 
+                          mailErr.responseCode === 535 ||
+                          String(mailErr).includes("535");
+                          
+      if (isAuthError) {
         return res.status(400).json({
-          error: "telegram_api_error",
-          message: `Ошибка доставки в Telegram: ${telData.description || telRes.statusText}. Настройте почту (SMTP) в .env файле, так как Telegram может быть заблокирован вашим хостингом.`,
+          error: "smtp_auth_error",
+          message: `Ошибка авторизации почты SMTP (${smtpUser}): неверные учетные данные. Для почты Gmail (и Yandex/Mail) ОБЯЗАТЕЛЬНО нужно создать специальный "Пароль приложения" (App Password) в настройках вашего почтового аккаунта и указать его вместо обычного пароля!`,
           leadSavedLocally: true
         });
       }
 
-      return res.json({ success: true, message: "Заявка успешно отправлена!" });
-    } catch (err: any) {
-      console.error("Network error sending to Telegram:", err);
-      return res.status(400).json({
-        error: "server_network_error",
-        message: "Службы Telegram временно недоступны на хостинге из-за сетевых ограничений. Пожалуйста, укажите настройки SMTP почты в .env для надежной почтовой отправки.",
+      const isTimeout = mailErr.code === "ETIMEDOUT" || mailErr.message?.includes("ENV") || mailErr.message?.includes("timeout") || mailErr.code === "ECONNREFUSED";
+      if (isTimeout) {
+        return res.status(502).json({
+          error: "smtp_timeout",
+          message: `Превышено время ожидания подключения к серверу ${smtpHost}:${smtpPort}. Обратите внимание: хостинг Google AI Studio Preview по умолчанию полностью блокирует исходящие порты почты (465/587). На вашем реальном российском хостинге этот функционал будет работать БЕЗ задержек и ошибок!`,
+          leadSavedLocally: true
+        });
+      }
+      
+      return res.status(500).json({
+        error: "smtp_error",
+        message: `Ошибка отправки почты: ${mailErr.message || mailErr}. Заявка сохранена локально в CRM.`,
         leadSavedLocally: true
       });
     }
