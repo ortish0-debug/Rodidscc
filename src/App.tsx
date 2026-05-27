@@ -122,7 +122,11 @@ export default function App() {
     try {
       let response;
       try {
-        response = await fetch('/api/contact', {
+        const apiBase = window.location.hostname === 'localhost' || window.location.hostname.includes('europe-west2.run.app')
+          ? ''
+          : 'https://ais-pre-tprmmslawen3lvvn6x5oby-449619546700.europe-west2.run.app';
+
+        response = await fetch(`${apiBase}/api/contact`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
