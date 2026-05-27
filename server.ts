@@ -4,6 +4,7 @@ import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import nodemailer from "nodemailer";
 import dotenv from "dotenv";
+import { Resend } from "resend";
 
 dotenv.config();
 
@@ -232,12 +233,16 @@ async function startServer() {
     // Option: Webhook notification (perfect for bypassing SMTP blocks on VPS)
     const webhookUrl = process.env.WEBHOOK_URL || "";
 
+    const resendApiKey = process.env.RESEND_API_KEY || "";
+    const notifyTo = process.env.NOTIFY_TO || smtpTo;
+    const isResendConfigured = !!resendApiKey;
+
     const isSmtpConfigured = smtpHost && smtpUser && smtpPass && !smtpUser.includes("your-email");
 
-    if (!isSmtpConfigured && !webhookUrl) {
+    if (!isSmtpConfigured && !isResendConfigured && !webhookUrl) {
       return res.status(400).json({
         error: "notification_not_configured",
-        message: "Настройки уведомлений не заданы! Пожалуйста, укажите SMTP-настройки почты (Yandex/Mail.ru) или укажите WEBHOOK_URL в вашем файле .env на сервере для получения заявок.",
+        message: "Настройки уведомлений не заданы! Пожалуйста, укажите RESEND_API_KEY в вашем файле .env на сервере для отправки писем через HTTP API (Resend.com), либо задайте SMTP-настройки/WEBHOOK_URL.",
         leadSavedLocally: true
       });
     }
@@ -246,9 +251,88 @@ async function startServer() {
     let emailErrorMsg = "";
     let webhookSent = false;
     let webhookErrorMsg = "";
+    let usedMethod = "";
 
-    // 1. Try sending via SMTP
-    if (isSmtpConfigured) {
+    const subjectStr = `🔥 Новая заявка с сайта AXIOM - ${name}`;
+    const textStr = `Новая заявка с сайта AXIOM\n\n` +
+                    `Имя: ${name}\n` +
+                    `Организация: ${company || "Не указана"}\n` +
+                    `Телефон: ${phone || "Не указан"}\n` +
+                    `Контакты для связи: ${contact}\n` +
+                    `Сфера деятельности: ${service || "Другое"}\n` +
+                    `Описание задачи:\n${message || "Не заполнено"}\n\n` +
+                    `Отправлено: ${new Date().toLocaleString("ru-RU")}`;
+
+    const htmlStr = `<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+      <div style="background-color: #111827; padding: 20px; text-align: center; color: #fff;">
+        <h2 style="margin: 0; font-size: 20px; letter-spacing: 1px;">⚡️ НОВАЯ ЗАЯВКА С САЙТА AXIOM</h2>
+      </div>
+      <div style="padding: 24px; background-color: #f9fafb;">
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+          <tr style="border-bottom: 1px solid #e5e7eb;">
+            <td style="padding: 10px 0; font-weight: bold; width: 140px; color: #4b5563;">👤 Имя:</td>
+            <td style="padding: 10px 0;">${name}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #e5e7eb;">
+            <td style="padding: 10px 0; font-weight: bold; color: #4b5563;">🏢 Организация:</td>
+            <td style="padding: 10px 0;">${company || "Не указана"}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #e5e7eb;">
+            <td style="padding: 10px 0; font-weight: bold; color: #4b5563;">📱 Телефон:</td>
+            <td style="padding: 10px 0;">${phone || "Не указан"}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #e5e7eb;">
+            <td style="padding: 10px 0; font-weight: bold; color: #4b5563;">📞 Контакты:</td>
+            <td style="padding: 10px 0; font-style: italic; color: #2563eb;">${contact}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #e5e7eb;">
+            <td style="padding: 10px 0; font-weight: bold; color: #4b5563;">💡 Сфера:</td>
+            <td style="padding: 10px 0; background-color: #f3f4f6; border-radius: 4px; display: inline-block; padding: 4px 10px; font-size: 13px; font-weight: 500;">${service || "Другое"}</td>
+          </tr>
+        </table>
+        
+        <div style="margin-top: 20px; background-color: #fff; border-left: 4px solid #111827; padding: 15px; border-radius: 4px;">
+          <strong style="display: block; margin-bottom: 8px; color: #4b5563;">💬 Описание задачи:</strong>
+          <div style="white-space: pre-wrap; font-size: 14px; color: #1f2937;">${message || "Не заполнено"}</div>
+        </div>
+      </div>
+      <div style="background-color: #f3f4f6; color: #9ca3af; padding: 12px; text-align: center; font-size: 11px; border-top: 1px solid #e5e7eb;">
+        Отправлено автоматически через сервер AXIOM Consult • ${new Date().toLocaleString("ru-RU")}
+      </div>
+    </div>`;
+
+    // 1. Try sending via Resend HTTP API (if configured)
+    if (isResendConfigured) {
+      console.log(`Resend HTTP API sending to: ${notifyTo}`);
+      try {
+        const resend = new Resend(resendApiKey);
+        // Note: Resend requires a domain-verified 'from' email. If using onboarding@resend.dev,
+        // it can only send to the account owner's email address.
+        const resendFrom = smtpFrom || "AXIOM Consult <onboarding@resend.dev>";
+        
+        const resendRes = await resend.emails.send({
+          from: resendFrom,
+          to: notifyTo,
+          subject: subjectStr,
+          text: textStr,
+          html: htmlStr
+        });
+
+        if (resendRes.error) {
+          throw new Error(resendRes.error.message || JSON.stringify(resendRes.error));
+        }
+
+        console.log("Email sent successfully via Resend HTTP API!");
+        emailSent = true;
+        usedMethod = "Resend API";
+      } catch (resendErr: any) {
+        console.error("Failed to deliver lead via Resend HTTP API:", resendErr);
+        emailErrorMsg = `Ошибка Resend: ${resendErr.message || resendErr}`;
+      }
+    }
+
+    // 2. Try sending via SMTP (if configured and Resend was not set/failed)
+    if (!emailSent && isSmtpConfigured) {
       console.log(`SMTP sending: Host=${smtpHost}, Port=${smtpPort}, User=${smtpUser}, To=${smtpTo}`);
       try {
         const transporter = nodemailer.createTransport({
@@ -264,54 +348,6 @@ async function startServer() {
           socketTimeout: 5000
         });
 
-        const subjectStr = `🔥 Новая заявка с сайта AXIOM - ${name}`;
-        const textStr = `Новая заявка с сайта AXIOM\n\n` +
-                        `Имя: ${name}\n` +
-                        `Организация: ${company || "Не указана"}\n` +
-                        `Телефон: ${phone || "Не указан"}\n` +
-                        `Контакты для связи: ${contact}\n` +
-                        `Сфера деятельности: ${service || "Другое"}\n` +
-                        `Описание задачи:\n${message || "Не заполнено"}\n\n` +
-                        `Отправлено: ${new Date().toLocaleString("ru-RU")}`;
-
-        const htmlStr = `<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-          <div style="background-color: #111827; padding: 20px; text-align: center; color: #fff;">
-            <h2 style="margin: 0; font-size: 20px; letter-spacing: 1px;">⚡️ НОВАЯ ЗАЯВКА С САЙТА AXIOM</h2>
-          </div>
-          <div style="padding: 24px; background-color: #f9fafb;">
-            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
-              <tr style="border-bottom: 1px solid #e5e7eb;">
-                <td style="padding: 10px 0; font-weight: bold; width: 140px; color: #4b5563;">👤 Имя:</td>
-                <td style="padding: 10px 0;">${name}</td>
-              </tr>
-              <tr style="border-bottom: 1px solid #e5e7eb;">
-                <td style="padding: 10px 0; font-weight: bold; color: #4b5563;">🏢 Организация:</td>
-                <td style="padding: 10px 0;">${company || "Не указана"}</td>
-              </tr>
-              <tr style="border-bottom: 1px solid #e5e7eb;">
-                <td style="padding: 10px 0; font-weight: bold; color: #4b5563;">📱 Телефон:</td>
-                <td style="padding: 10px 0;">${phone || "Не указан"}</td>
-              </tr>
-              <tr style="border-bottom: 1px solid #e5e7eb;">
-                <td style="padding: 10px 0; font-weight: bold; color: #4b5563;">📞 Контакты:</td>
-                <td style="padding: 10px 0; font-style: italic; color: #2563eb;">${contact}</td>
-              </tr>
-              <tr style="border-bottom: 1px solid #e5e7eb;">
-                <td style="padding: 10px 0; font-weight: bold; color: #4b5563;">💡 Сфера:</td>
-                <td style="padding: 10px 0; background-color: #f3f4f6; border-radius: 4px; display: inline-block; padding: 4px 10px; font-size: 13px; font-weight: 500;">${service || "Другое"}</td>
-              </tr>
-            </table>
-            
-            <div style="margin-top: 20px; background-color: #fff; border-left: 4px solid #111827; padding: 15px; border-radius: 4px;">
-              <strong style="display: block; margin-bottom: 8px; color: #4b5563;">💬 Описание задачи:</strong>
-              <div style="white-space: pre-wrap; font-size: 14px; color: #1f2937;">${message || "Не заполнено"}</div>
-            </div>
-          </div>
-          <div style="background-color: #f3f4f6; color: #9ca3af; padding: 12px; text-align: center; font-size: 11px; border-top: 1px solid #e5e7eb;">
-            Отправлено автоматически через сервер AXIOM Consult • ${new Date().toLocaleString("ru-RU")}
-          </div>
-        </div>`;
-
         await transporter.sendMail({
           from: smtpFrom || smtpUser,
           to: smtpTo,
@@ -320,8 +356,9 @@ async function startServer() {
           html: htmlStr
         });
 
-        console.log("Email sent successfully!");
+        console.log("Email sent successfully via SMTP fallback!");
         emailSent = true;
+        usedMethod = "SMTP";
       } catch (mailErr: any) {
         console.error("Failed to deliver lead on SMTP email connection:", mailErr);
         
@@ -338,7 +375,7 @@ async function startServer() {
       }
     }
 
-    // 2. Try sending via Webhook if configured
+    // 3. Try sending via Webhook if configured
     if (webhookUrl) {
       console.log(`Sending Webhook notification to URL: ${webhookUrl}`);
       try {
@@ -374,17 +411,17 @@ async function startServer() {
     if (emailSent || webhookSent) {
       let successMsg = "Заявка успешно отправлена!";
       if (emailSent && webhookSent) {
-        successMsg = "Заявка успешно дублирована на почту и вебхук!";
+        successMsg = `Заявка успешно отправлена на почту (через ${usedMethod}) и дублирована на вебхук!`;
       } else if (emailSent) {
-        successMsg = "Заявка успешно отправлена на электронную почту!";
+        successMsg = `Заявка успешно отправлена на электронную почту (через ${usedMethod})!`;
       } else if (webhookSent) {
-        successMsg = `Заявка успешно отправлена через Вебхук! (SMTP-сервер почты был недоступен: ${emailErrorMsg || "таймаут"})`;
+        successMsg = `Заявка успешно отправлена через Вебхук! (SMTP/Resend-сервер почты был недоступен: ${emailErrorMsg || "таймаут"})`;
       }
       return res.json({ success: true, message: successMsg });
     }
 
     // If both failed:
-    if (isSmtpConfigured && webhookUrl) {
+    if ((isResendConfigured || isSmtpConfigured) && webhookUrl) {
       return res.status(502).json({
         error: "all_notifications_failed",
         message: `Все способы отправки завершились ошибкой. Ошибка почты: ${emailErrorMsg}. Ошибка вебхука: ${webhookErrorMsg}. Заявка надежно сохранена локально в CRM сервера!`,
@@ -392,10 +429,18 @@ async function startServer() {
       });
     }
 
+    if (isResendConfigured) {
+      return res.status(502).json({
+        error: "resend_failed",
+        message: `Не удалось отправить письмо через Resend API (HTTP-запрос). Ошибка: ${emailErrorMsg}. Пожалуйста, убедитесь в правильности ключа RESEND_API_KEY и что адрес отправителя/получателя разрешен вашим аккаунтом Resend. Заявка сохранена в CRM.`,
+        leadSavedLocally: true
+      });
+    }
+
     if (isSmtpConfigured) {
       return res.status(502).json({
         error: "smtp_timeout",
-        message: `Превышено время ожидания подключения к SMTP серверу почты (${smtpHost}:${smtpPort}). Ошибка: ${emailErrorMsg || "ETIMEDOUT"}. Обратите внимание, что хостинги часто блокируют порты 465/587. Советуем использовать Яндекс.Почту (smtp.yandex.ru, порт 465, secure: true) со специальным "Паролем приложения" или настроить WEBHOOK_URL в .env для HTTP-отправки заявок. Заявка сохранена в CRM.`,
+        message: `Превышено время ожидания подключения к SMTP серверу почты. Ошибка: ${emailErrorMsg || "ETIMEDOUT"}. Советуем использовать Яндекс.Почту или настроить RESEND_API_KEY в .env для HTTP-отправки заявок. Заявка сохранена в CRM.`,
         leadSavedLocally: true
       });
     }
@@ -405,6 +450,7 @@ async function startServer() {
       message: `Не удалось отправить данные через вебхук. Ошибка: ${webhookErrorMsg}. Заявка сохранена локально в CRM.`,
       leadSavedLocally: true
     });
+
   });
 
   // API Route: View CRM leads (Admin interface or check)
