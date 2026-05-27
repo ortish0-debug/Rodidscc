@@ -229,121 +229,182 @@ async function startServer() {
     const smtpTo = process.env.SMTP_TO || "ortish0@gmail.com";
     const smtpFrom = process.env.SMTP_FROM || (smtpUser ? `AXIOM Consult <${smtpUser}>` : "");
 
+    // Option: Webhook notification (perfect for bypassing SMTP blocks on VPS)
+    const webhookUrl = process.env.WEBHOOK_URL || "";
+
     const isSmtpConfigured = smtpHost && smtpUser && smtpPass && !smtpUser.includes("your-email");
 
-    if (!isSmtpConfigured) {
+    if (!isSmtpConfigured && !webhookUrl) {
       return res.status(400).json({
-        error: "smtp_not_configured",
-        message: "Настройки почты (SMTP) не заданы или заполнены некорректно в переменных окружения (.env). Пожалуйста, укажите SMTP_USER, SMTP_PASS и SMTP_TO для получения сообщений на почту.",
+        error: "notification_not_configured",
+        message: "Настройки уведомлений не заданы! Пожалуйста, укажите SMTP-настройки почты (Yandex/Mail.ru) или укажите WEBHOOK_URL в вашем файле .env на сервере для получения заявок.",
         leadSavedLocally: true
       });
     }
 
-    console.log(`SMTP sending: Host=${smtpHost}, Port=${smtpPort}, User=${smtpUser}, To=${smtpTo}`);
+    let emailSent = false;
+    let emailErrorMsg = "";
+    let webhookSent = false;
+    let webhookErrorMsg = "";
 
-    try {
-      const transporter = nodemailer.createTransport({
-        host: smtpHost,
-        port: smtpPort,
-        secure: smtpPort === 465 || smtpSecure,
-        auth: {
-          user: smtpUser,
-          pass: smtpPass
-        },
-        connectionTimeout: 5000, // 5 seconds connection timeout
-        greetingTimeout: 5000,
-        socketTimeout: 5000
-      });
+    // 1. Try sending via SMTP
+    if (isSmtpConfigured) {
+      console.log(`SMTP sending: Host=${smtpHost}, Port=${smtpPort}, User=${smtpUser}, To=${smtpTo}`);
+      try {
+        const transporter = nodemailer.createTransport({
+          host: smtpHost,
+          port: smtpPort,
+          secure: smtpPort === 465 || smtpSecure,
+          auth: {
+            user: smtpUser,
+            pass: smtpPass
+          },
+          connectionTimeout: 5000, // 5 seconds connection timeout
+          greetingTimeout: 5000,
+          socketTimeout: 5000
+        });
 
-      const subjectStr = `🔥 Новая заявка с сайта AXIOM - ${name}`;
-      const textStr = `Новая заявка с сайта AXIOM\n\n` +
-                      `Имя: ${name}\n` +
-                      `Организация: ${company || "Не указана"}\n` +
-                      `Телефон: ${phone || "Не указан"}\n` +
-                      `Контакты для связи: ${contact}\n` +
-                      `Сфера деятельности: ${service || "Другое"}\n` +
-                      `Описание задачи:\n${message || "Не заполнено"}\n\n` +
-                      `Отправлено: ${new Date().toLocaleString("ru-RU")}`;
+        const subjectStr = `🔥 Новая заявка с сайта AXIOM - ${name}`;
+        const textStr = `Новая заявка с сайта AXIOM\n\n` +
+                        `Имя: ${name}\n` +
+                        `Организация: ${company || "Не указана"}\n` +
+                        `Телефон: ${phone || "Не указан"}\n` +
+                        `Контакты для связи: ${contact}\n` +
+                        `Сфера деятельности: ${service || "Другое"}\n` +
+                        `Описание задачи:\n${message || "Не заполнено"}\n\n` +
+                        `Отправлено: ${new Date().toLocaleString("ru-RU")}`;
 
-      const htmlStr = `<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-        <div style="background-color: #111827; padding: 20px; text-align: center; color: #fff;">
-          <h2 style="margin: 0; font-size: 20px; letter-spacing: 1px;">⚡️ НОВАЯ ЗАЯВКА С САЙТА AXIOM</h2>
-        </div>
-        <div style="padding: 24px; background-color: #f9fafb;">
-          <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
-            <tr style="border-bottom: 1px solid #e5e7eb;">
-              <td style="padding: 10px 0; font-weight: bold; width: 140px; color: #4b5563;">👤 Имя:</td>
-              <td style="padding: 10px 0;">${name}</td>
-            </tr>
-            <tr style="border-bottom: 1px solid #e5e7eb;">
-              <td style="padding: 10px 0; font-weight: bold; color: #4b5563;">🏢 Организация:</td>
-              <td style="padding: 10px 0;">${company || "Не указана"}</td>
-            </tr>
-            <tr style="border-bottom: 1px solid #e5e7eb;">
-              <td style="padding: 10px 0; font-weight: bold; color: #4b5563;">📱 Телефон:</td>
-              <td style="padding: 10px 0;">${phone || "Не указан"}</td>
-            </tr>
-            <tr style="border-bottom: 1px solid #e5e7eb;">
-              <td style="padding: 10px 0; font-weight: bold; color: #4b5563;">📞 Контакты:</td>
-              <td style="padding: 10px 0; font-style: italic; color: #2563eb;">${contact}</td>
-            </tr>
-            <tr style="border-bottom: 1px solid #e5e7eb;">
-              <td style="padding: 10px 0; font-weight: bold; color: #4b5563;">💡 Сфера:</td>
-              <td style="padding: 10px 0; background-color: #f3f4f6; border-radius: 4px; display: inline-block; padding: 4px 10px; font-size: 13px; font-weight: 500;">${service || "Другое"}</td>
-            </tr>
-          </table>
-          
-          <div style="margin-top: 20px; background-color: #fff; border-left: 4px solid #111827; padding: 15px; border-radius: 4px;">
-            <strong style="display: block; margin-bottom: 8px; color: #4b5563;">💬 Описание задачи:</strong>
-            <div style="white-space: pre-wrap; font-size: 14px; color: #1f2937;">${message || "Не заполнено"}</div>
+        const htmlStr = `<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+          <div style="background-color: #111827; padding: 20px; text-align: center; color: #fff;">
+            <h2 style="margin: 0; font-size: 20px; letter-spacing: 1px;">⚡️ НОВАЯ ЗАЯВКА С САЙТА AXIOM</h2>
           </div>
-        </div>
-        <div style="background-color: #f3f4f6; color: #9ca3af; padding: 12px; text-align: center; font-size: 11px; border-top: 1px solid #e5e7eb;">
-          Отправлено автоматически через сервер AXIOM Consult • ${new Date().toLocaleString("ru-RU")}
-        </div>
-      </div>`;
+          <div style="padding: 24px; background-color: #f9fafb;">
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+              <tr style="border-bottom: 1px solid #e5e7eb;">
+                <td style="padding: 10px 0; font-weight: bold; width: 140px; color: #4b5563;">👤 Имя:</td>
+                <td style="padding: 10px 0;">${name}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #e5e7eb;">
+                <td style="padding: 10px 0; font-weight: bold; color: #4b5563;">🏢 Организация:</td>
+                <td style="padding: 10px 0;">${company || "Не указана"}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #e5e7eb;">
+                <td style="padding: 10px 0; font-weight: bold; color: #4b5563;">📱 Телефон:</td>
+                <td style="padding: 10px 0;">${phone || "Не указан"}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #e5e7eb;">
+                <td style="padding: 10px 0; font-weight: bold; color: #4b5563;">📞 Контакты:</td>
+                <td style="padding: 10px 0; font-style: italic; color: #2563eb;">${contact}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #e5e7eb;">
+                <td style="padding: 10px 0; font-weight: bold; color: #4b5563;">💡 Сфера:</td>
+                <td style="padding: 10px 0; background-color: #f3f4f6; border-radius: 4px; display: inline-block; padding: 4px 10px; font-size: 13px; font-weight: 500;">${service || "Другое"}</td>
+              </tr>
+            </table>
+            
+            <div style="margin-top: 20px; background-color: #fff; border-left: 4px solid #111827; padding: 15px; border-radius: 4px;">
+              <strong style="display: block; margin-bottom: 8px; color: #4b5563;">💬 Описание задачи:</strong>
+              <div style="white-space: pre-wrap; font-size: 14px; color: #1f2937;">${message || "Не заполнено"}</div>
+            </div>
+          </div>
+          <div style="background-color: #f3f4f6; color: #9ca3af; padding: 12px; text-align: center; font-size: 11px; border-top: 1px solid #e5e7eb;">
+            Отправлено автоматически через сервер AXIOM Consult • ${new Date().toLocaleString("ru-RU")}
+          </div>
+        </div>`;
 
-      await transporter.sendMail({
-        from: smtpFrom || smtpUser,
-        to: smtpTo,
-        subject: subjectStr,
-        text: textStr,
-        html: htmlStr
-      });
-
-      console.log("Email sent successfully!");
-      return res.json({ success: true, message: "Заявка успешно отправлена на электронную почту!" });
-    } catch (mailErr: any) {
-      console.error("Failed to deliver lead on SMTP email connection:", mailErr);
-      
-      const isAuthError = mailErr.code === "EAUTH" || 
-                          mailErr.message?.includes("535") || 
-                          mailErr.responseCode === 535 ||
-                          String(mailErr).includes("535");
-                          
-      if (isAuthError) {
-        return res.status(400).json({
-          error: "smtp_auth_error",
-          message: `Ошибка авторизации почты SMTP (${smtpUser}): неверные учетные данные. Для почты Gmail (и Yandex/Mail) ОБЯЗАТЕЛЬНО нужно создать специальный "Пароль приложения" (App Password) в настройках вашего почтового аккаунта и указать его вместо обычного пароля!`,
-          leadSavedLocally: true
+        await transporter.sendMail({
+          from: smtpFrom || smtpUser,
+          to: smtpTo,
+          subject: subjectStr,
+          text: textStr,
+          html: htmlStr
         });
-      }
 
-      const isTimeout = mailErr.code === "ETIMEDOUT" || mailErr.message?.includes("ENV") || mailErr.message?.includes("timeout") || mailErr.code === "ECONNREFUSED";
-      if (isTimeout) {
-        return res.status(502).json({
-          error: "smtp_timeout",
-          message: `Превышено время ожидания подключения к серверу ${smtpHost}:${smtpPort}. Обратите внимание: хостинг Google AI Studio Preview по умолчанию полностью блокирует исходящие порты почты (465/587). На вашем реальном российском хостинге этот функционал будет работать БЕЗ задержек и ошибок!`,
-          leadSavedLocally: true
-        });
+        console.log("Email sent successfully!");
+        emailSent = true;
+      } catch (mailErr: any) {
+        console.error("Failed to deliver lead on SMTP email connection:", mailErr);
+        
+        const isAuthError = mailErr.code === "EAUTH" || 
+                            mailErr.message?.includes("535") || 
+                            mailErr.responseCode === 535 ||
+                            String(mailErr).includes("535");
+                            
+        if (isAuthError) {
+          emailErrorMsg = `Ошибка авторизации SMTP (${smtpUser}): неверные учетные данные. Убедитесь, что вы создали отдельный "Пароль приложения" в настройках аккаунта Яндекс (или Mail.ru/Gmail)!`;
+        } else {
+          emailErrorMsg = `${mailErr.message || mailErr}`;
+        }
       }
-      
-      return res.status(500).json({
-        error: "smtp_error",
-        message: `Ошибка отправки почты: ${mailErr.message || mailErr}. Заявка сохранена локально в CRM.`,
+    }
+
+    // 2. Try sending via Webhook if configured
+    if (webhookUrl) {
+      console.log(`Sending Webhook notification to URL: ${webhookUrl}`);
+      try {
+        const webhookResponse = await fetchWithTimeout(webhookUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+          },
+          body: JSON.stringify({
+            event: "new_lead",
+            lead: newLead
+          }),
+          timeout: 4000
+        });
+
+        if (webhookResponse.ok) {
+          console.log("Webhook sent successfully!");
+          webhookSent = true;
+        } else {
+          const statusText = webhookResponse.statusText;
+          const status = webhookResponse.status;
+          console.error(`Webhook returned error status: ${status} ${statusText}`);
+          webhookErrorMsg = `Статус ${status} ${statusText}`;
+        }
+      } catch (webhookErr: any) {
+        console.error("Failed to send Webhook notification:", webhookErr);
+        webhookErrorMsg = `${webhookErr.message || webhookErr}`;
+      }
+    }
+
+    // Determine finalized response
+    if (emailSent || webhookSent) {
+      let successMsg = "Заявка успешно отправлена!";
+      if (emailSent && webhookSent) {
+        successMsg = "Заявка успешно дублирована на почту и вебхук!";
+      } else if (emailSent) {
+        successMsg = "Заявка успешно отправлена на электронную почту!";
+      } else if (webhookSent) {
+        successMsg = `Заявка успешно отправлена через Вебхук! (SMTP-сервер почты был недоступен: ${emailErrorMsg || "таймаут"})`;
+      }
+      return res.json({ success: true, message: successMsg });
+    }
+
+    // If both failed:
+    if (isSmtpConfigured && webhookUrl) {
+      return res.status(502).json({
+        error: "all_notifications_failed",
+        message: `Все способы отправки завершились ошибкой. Ошибка почты: ${emailErrorMsg}. Ошибка вебхука: ${webhookErrorMsg}. Заявка надежно сохранена локально в CRM сервера!`,
         leadSavedLocally: true
       });
     }
+
+    if (isSmtpConfigured) {
+      return res.status(502).json({
+        error: "smtp_timeout",
+        message: `Превышено время ожидания подключения к SMTP серверу почты (${smtpHost}:${smtpPort}). Ошибка: ${emailErrorMsg || "ETIMEDOUT"}. Обратите внимание, что хостинги часто блокируют порты 465/587. Советуем использовать Яндекс.Почту (smtp.yandex.ru, порт 465, secure: true) со специальным "Паролем приложения" или настроить WEBHOOK_URL в .env для HTTP-отправки заявок. Заявка сохранена в CRM.`,
+        leadSavedLocally: true
+      });
+    }
+
+    return res.status(502).json({
+      error: "webhook_failed",
+      message: `Не удалось отправить данные через вебхук. Ошибка: ${webhookErrorMsg}. Заявка сохранена локально в CRM.`,
+      leadSavedLocally: true
+    });
   });
 
   // API Route: View CRM leads (Admin interface or check)
