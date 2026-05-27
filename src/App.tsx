@@ -16,16 +16,40 @@ import {
   Calendar,
   Award,
   Mail,
-  LogOut
+  LogOut,
+  Sparkles,
+  ArrowRight
 } from 'lucide-react';
 import FadingVideo from './components/FadingVideo';
 import BlurText from './components/BlurText';
+import AiAuditPage from './components/AiAuditPage';
 import { initAuth, googleSignIn, logout, sendApplicationEmail } from './lib/firebase';
 import type { User } from 'firebase/auth';
 
 export default function App() {
   // Mobile navigation drawer state
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [currentView, setCurrentView] = useState('home'); // 'home' | 'audit'
+
+  useEffect(() => {
+    const handleLocationChange = () => {
+      if (window.location.pathname === '/audit') {
+        setCurrentView('audit');
+      } else {
+        setCurrentView('home');
+      }
+    };
+    handleLocationChange();
+    window.addEventListener('popstate', handleLocationChange);
+    return () => window.removeEventListener('popstate', handleLocationChange);
+  }, []);
+
+  const navigateToView = (view: 'home' | 'audit') => {
+    setCurrentView(view);
+    const targetPath = view === 'audit' ? '/audit' : '/';
+    window.history.pushState(null, '', targetPath);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
   
   const scrollToSection = (e: React.MouseEvent, id: string, isMobile: boolean = false) => {
     e.preventDefault();
@@ -231,7 +255,16 @@ export default function App() {
           {/* Logo Brand: group for circle and label */}
           <motion.a 
             href="#hero"
-            onClick={(e) => scrollToSection(e, 'hero')}
+            onClick={(e) => {
+              e.preventDefault();
+              navigateToView('home');
+              setTimeout(() => {
+                const element = document.getElementById('hero');
+                if (element) {
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+              }, 100);
+            }}
             initial={{ opacity: 0, x: -25 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.5, ease: 'easeOut' }}
@@ -253,21 +286,92 @@ export default function App() {
             transition={{ duration: 0.6, delay: 0.2, ease: 'easeOut' }}
             className="hidden md:flex items-center gap-1 liquid-glass rounded-full px-1.5 py-1.5 backdrop-blur-md"
           >
-            <a href="#hero" onClick={(e) => scrollToSection(e, 'hero')} className="px-4 py-2 text-sm font-medium text-white/90 hover:text-white transition-colors">Главная</a>
-            <a href="#services" onClick={(e) => scrollToSection(e, 'services')} className="px-4 py-2 text-sm font-medium text-white/90 hover:text-white transition-colors">Услуги</a>
-            <a href="#clients" onClick={(e) => scrollToSection(e, 'clients')} className="px-4 py-2 text-sm font-medium text-white/90 hover:text-white transition-colors">Клиенты</a>
-            <a href="#about" onClick={(e) => scrollToSection(e, 'about')} className="px-4 py-2 text-sm font-medium text-white/90 hover:text-white transition-colors">О нас</a>
-            <button 
-              onClick={() => setIsContactOpen(true)}
-              className="px-4 py-2 text-sm font-medium text-white/90 hover:text-white transition-colors"
+            <a 
+              href="#hero" 
+              onClick={(e) => {
+                e.preventDefault();
+                navigateToView('home');
+                setTimeout(() => {
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }, 100);
+              }} 
+              className={`px-4 py-2 text-sm font-medium transition-colors ${currentView === 'home' ? 'text-white' : 'text-white/60 hover:text-white'}`}
             >
-              Контакты
+              Главная
+            </a>
+            <a 
+              href="#services" 
+              onClick={(e) => {
+                e.preventDefault();
+                navigateToView('home');
+                setTimeout(() => {
+                  const element = document.getElementById('services');
+                  if (element) {
+                    const headerOffset = 90;
+                    const elementPosition = element.getBoundingClientRect().top;
+                    const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+                    window.scrollTo({ top: offsetPosition, behavior: 'smooth' });
+                  }
+                }, 120);
+              }} 
+              className="px-4 py-2 text-sm font-medium text-white/60 hover:text-white transition-colors"
+            >
+              Услуги
+            </a>
+            <a 
+              href="#clients" 
+              onClick={(e) => {
+                e.preventDefault();
+                navigateToView('home');
+                setTimeout(() => {
+                  const element = document.getElementById('clients');
+                  if (element) {
+                    const headerOffset = 90;
+                    const elementPosition = element.getBoundingClientRect().top;
+                    const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+                    window.scrollTo({ top: offsetPosition, behavior: 'smooth' });
+                  }
+                }, 120);
+              }} 
+              className="px-4 py-2 text-sm font-medium text-white/60 hover:text-white transition-colors"
+            >
+              Клиенты
+            </a>
+            <a 
+              href="#about" 
+              onClick={(e) => {
+                e.preventDefault();
+                navigateToView('home');
+                setTimeout(() => {
+                  const element = document.getElementById('about');
+                  if (element) {
+                    const headerOffset = 90;
+                    const elementPosition = element.getBoundingClientRect().top;
+                    const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+                    window.scrollTo({ top: offsetPosition, behavior: 'smooth' });
+                  }
+                }, 120);
+              }} 
+              className="px-4 py-2 text-sm font-medium text-white/60 hover:text-white transition-colors"
+            >
+              О нас
+            </a>
+            
+            <button 
+              onClick={() => navigateToView('audit')}
+              className={`px-4 py-2 text-sm font-semibold rounded-full select-none cursor-pointer transition-all duration-200 ${
+                currentView === 'audit' 
+                  ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30 font-bold px-4' 
+                  : 'text-blue-400/90 hover:text-blue-300'
+              }`}
+            >
+              ⚡️ Расчет окупаемости ИИ (ROI)
             </button>
             
             {/* White CTA Pill inside Nav */}
             <button 
               onClick={() => setIsContactOpen(true)}
-              className="ml-2 bg-white text-black rounded-full px-5 py-2.5 text-sm font-semibold flex items-center gap-1.5 hover:bg-neutral-200 active:scale-95 transition-all duration-250 whitespace-nowrap"
+              className="ml-2 bg-white text-black rounded-full px-5 py-2.5 text-sm font-semibold flex items-center gap-1.5 hover:bg-neutral-200 active:scale-95 transition-all duration-250 whitespace-nowrap cursor-pointer"
             >
               Начать проект 
               <ArrowUpRight className="h-4 w-4 stroke-[2.5]" />
@@ -278,7 +382,7 @@ export default function App() {
           <div className="flex md:hidden items-center gap-2">
             <button 
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="w-12 h-12 rounded-full liquid-glass flex items-center justify-center text-white"
+              className="w-12 h-12 rounded-full liquid-glass flex items-center justify-center text-white cursor-pointer"
             >
               <Menu className="h-5 w-5" />
             </button>
@@ -300,32 +404,71 @@ export default function App() {
             >
               <a 
                 href="#hero" 
-                onClick={(e) => scrollToSection(e, 'hero', true)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  setIsMobileMenuOpen(false);
+                  navigateToView('home');
+                }}
                 className="py-3 px-4 rounded-xl hover:bg-white/5 text-lg font-light tracking-wide text-white"
               >
                 Главная
               </a>
               <a 
                 href="#services" 
-                onClick={(e) => scrollToSection(e, 'services', true)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  setIsMobileMenuOpen(false);
+                  navigateToView('home');
+                  setTimeout(() => {
+                    const element = document.getElementById('services');
+                    if (element) element.scrollIntoView({ behavior: 'smooth' });
+                  }, 200);
+                }}
                 className="py-3 px-4 rounded-xl hover:bg-white/5 text-lg font-light tracking-wide text-white"
               >
                 Услуги
               </a>
               <a 
                 href="#clients" 
-                onClick={(e) => scrollToSection(e, 'clients', true)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  setIsMobileMenuOpen(false);
+                  navigateToView('home');
+                  setTimeout(() => {
+                    const element = document.getElementById('clients');
+                    if (element) element.scrollIntoView({ behavior: 'smooth' });
+                  }, 200);
+                }}
                 className="py-3 px-4 rounded-xl hover:bg-white/5 text-lg font-light tracking-wide text-white"
               >
                 Клиенты
               </a>
               <a 
                 href="#about" 
-                onClick={(e) => scrollToSection(e, 'about', true)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  setIsMobileMenuOpen(false);
+                  navigateToView('home');
+                  setTimeout(() => {
+                    const element = document.getElementById('about');
+                    if (element) element.scrollIntoView({ behavior: 'smooth' });
+                  }, 200);
+                }}
                 className="py-3 px-4 rounded-xl hover:bg-white/5 text-lg font-light tracking-wide text-white"
               >
                 О нас
               </a>
+              
+              <button 
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  navigateToView('audit');
+                }}
+                className="py-3 px-4 text-left rounded-xl hover:bg-blue-600/10 text-lg font-semibold tracking-wide text-blue-400"
+              >
+                ⚡️ Расчет окупаемости ИИ (ROI)
+              </button>
+
               <button 
                 onClick={() => {
                   setIsMobileMenuOpen(false);
@@ -341,7 +484,7 @@ export default function App() {
                   setIsMobileMenuOpen(false);
                   setIsContactOpen(true);
                 }}
-                className="w-full justify-center bg-white text-black py-4 rounded-2xl font-semibold flex items-center gap-2 mt-2"
+                className="w-full justify-center bg-white text-black py-4 rounded-2xl font-semibold flex items-center gap-2 mt-2 cursor-pointer"
               >
                 Начать проект
                 <ArrowUpRight className="h-5 w-5 stroke-[2.5]" />
@@ -351,11 +494,13 @@ export default function App() {
         </AnimatePresence>
       </nav>
 
-      {/* SECTION 1 — HERO SECTION */}
-      <section 
-        id="hero" 
-        className="relative min-h-screen w-full flex flex-col justify-between items-center bg-black overflow-hidden select-none"
-      >
+      {currentView === 'home' ? (
+        <>
+          {/* SECTION 1 — HERO SECTION */}
+          <section 
+            id="hero" 
+            className="relative min-h-screen w-full flex flex-col justify-between items-center bg-black overflow-hidden select-none"
+          >
         {/* Cinematic City Night Aerial Loop Background video (120% scale) */}
         <FadingVideo 
           src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260418_080021_d598092b-c4c2-4e53-8e46-94cf9064cd50.mp4"
@@ -370,18 +515,21 @@ export default function App() {
         {/* HERO MAIN BODY CONTAINER - Centered content */}
         <div className="relative z-10 w-full max-w-5xl mx-auto flex-1 flex flex-col items-center justify-center text-center px-4 pt-32 pb-12">
           
-           {/* Badge Widget with 0.4s Delay */}
+           {/* Interactive Badge Widget with 0.4s Delay */}
           <motion.div 
             initial={{ opacity: 0, y: 30, filter: 'blur(5px)' }}
             animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
             transition={{ duration: 0.8, delay: 0.4, ease: 'easeOut' }}
-            className="inline-flex items-center gap-2.5 bg-black/40 border border-white/10 rounded-full p-1 pr-4.5 mb-8 max-w-full hover:bg-black/60 transition-all duration-300 backdrop-blur-md"
+            onClick={() => navigateToView('audit')}
+            className="inline-flex items-center gap-2.5 bg-blue-950/30 hover:bg-blue-900/40 border border-blue-500/20 hover:border-blue-500/40 rounded-full p-1.5 pr-4.5 mb-8 max-w-full transition-all duration-300 backdrop-blur-md cursor-pointer group active:scale-98"
           >
-            <span className="bg-white text-black px-3.5 py-1.5 text-xs font-bold tracking-wider rounded-full select-none">
-              AXIOM CONSULTING
+            <span className="bg-blue-600 group-hover:bg-blue-500 text-white px-3.5 py-1.5 text-xs font-bold tracking-wider rounded-full select-none flex items-center gap-1 transition-colors">
+              <Sparkles className="h-3.5 w-3.5 animate-pulse" />
+              РАСЧЕТ ROI ОНЛАЙН
             </span>
-            <span className="text-[13px] md:text-sm text-white/90 font-body font-light tracking-wide whitespace-nowrap overflow-hidden text-ellipsis">
-              Финансово-экономический расчет эффекта от внедрения AI
+            <span className="text-[13px] md:text-sm text-blue-200/90 group-hover:text-white font-body font-medium tracking-wide whitespace-nowrap overflow-hidden text-ellipsis flex items-center gap-1.5">
+              Узнайте окупаемость ИИ в вашем бизнесе за 3 минуты
+              <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
             </span>
           </motion.div>
 
@@ -412,25 +560,25 @@ export default function App() {
             initial={{ opacity: 0, y: 20, filter: 'blur(5px)' }}
             animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
             transition={{ duration: 0.8, delay: 1.1, ease: 'easeOut' }}
-            className="flex items-center justify-center gap-6 mt-10 flex-col sm:flex-row w-full sm:w-auto px-4"
+            className="flex items-center justify-center gap-4 mt-10 flex-col sm:flex-row w-full sm:w-auto px-4"
           >
             {/* Primary CTA button */}
             <button 
               onClick={() => setIsContactOpen(true)}
-              className="w-full sm:w-auto liquid-glass-strong rounded-full px-7 py-3.5 text-sm font-semibold text-white flex items-center justify-center gap-2 hover:bg-white/10 active:scale-95 transition-all duration-300 cursor-pointer"
+              className="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 text-white rounded-full px-7 py-3.5 text-sm font-semibold flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 active:scale-95 transition-all duration-300 cursor-pointer"
             >
-              Запустить проект
-              <ArrowUpRight className="h-4.5 w-4.5 stroke-[2.5]" />
+              Связаться с нами
+              <ArrowUpRight className="h-4.5 w-4.5 stroke-[2.5] shrink-0" />
             </button>
 
             {/* Secondary Link button */}
             <a 
               href="#clients"
               onClick={(e) => scrollToSection(e, 'clients')}
-              className="group inline-flex items-center justify-center gap-2 text-sm font-semibold text-neutral-300 hover:text-white transition-colors py-2"
+              className="group inline-flex items-center justify-center gap-2 text-sm font-semibold text-neutral-300 hover:text-white transition-colors py-2 pl-2"
             >
               Смотреть кейсы
-              <span className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-white/15 transition-all duration-300">
+              <span className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-white/15 transition-all duration-300 shrink-0">
                 <Play className="h-3 w-3 text-white fill-white translate-x-0.5" />
               </span>
             </a>
@@ -575,6 +723,13 @@ export default function App() {
                 <p className="mt-3 text-sm text-neutral-300 font-body font-light leading-relaxed max-w-[32ch]">
                   Проводим финансово-экономический аудит, рассчитываем ROI, точную стоимость владения и оцениваем итоговый бизнес-эффект от AI-систем до начала разработки.
                 </p>
+                <button 
+                  onClick={() => navigateToView('audit')}
+                  className="mt-5 w-full bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/20 px-4 py-3 rounded-xl font-bold text-xs font-mono tracking-wider uppercase flex items-center justify-center gap-1.5 transition-all active:scale-98 cursor-pointer"
+                >
+                  <Sparkles className="h-4 w-4 shrink-0" />
+                  Рассчитать окупаемость ИИ (ROI) →
+                </button>
               </div>
             </motion.div>
 
@@ -661,14 +816,23 @@ export default function App() {
           </div>
 
           {/* Quick interactive note */}
-          <div className="text-left py-4 border-t border-white/5 opacity-60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <span className="text-xs font-mono font-light tracking-wide">// ГОТОВЫ К ОЦЕНКЕ ПРОЕКТА? СВЯЖИТЕСЬ С НАМИ ДЛЯ ОНЛАЙН-КОНСУЛЬТАЦИИ В ТЕЧЕНИЕ ДНЯ.</span>
-            <button 
-              onClick={() => setIsContactOpen(true)}
-              className="text-xs font-semibold underline text-white hover:text-neutral-300 transition-colors cursor-pointer text-left"
-            >
-              Получить расчет стоимости за 15 минут →
-            </button>
+          <div className="text-left py-4 border-t border-white/5 opacity-80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <span className="text-xs font-mono font-light tracking-wide">// ГОТОВЫ К ОЦЕНКЕ ЭФФЕКТА? ОЦЕНИТЕ ROI СЕМИНАРА ИЛИ ПОДБОРА ИИ-РЕШЕНИЙ ТЕКУЩИХ ЗАДАЧ.</span>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
+              <button 
+                onClick={() => navigateToView('audit')}
+                className="text-xs font-semibold text-blue-400 hover:text-blue-300 transition-colors cursor-pointer text-left flex items-center gap-1 shrink-0"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                Рассчитать окупаемость внедрения ИИ онлайн →
+              </button>
+              <button 
+                onClick={() => setIsContactOpen(true)}
+                className="text-xs font-semibold underline text-white hover:text-neutral-300 transition-colors cursor-pointer text-left shrink-0"
+              >
+                Запросить оффер за 15 минут →
+              </button>
+            </div>
           </div>
 
         </div>
@@ -1157,6 +1321,10 @@ export default function App() {
 
         </div>
       </section>
+        </>
+      ) : (
+        <AiAuditPage onBackToHome={() => navigateToView('home')} />
+      )}
 
       {/* INTERACTIVE INQUIRY SLIDE-OVER DRAWER (liquid-glass-strong) */}
       <AnimatePresence>
