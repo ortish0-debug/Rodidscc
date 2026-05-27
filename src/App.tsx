@@ -23,6 +23,7 @@ import {
 import FadingVideo from './components/FadingVideo';
 import BlurText from './components/BlurText';
 import AiAuditPage from './components/AiAuditPage';
+import ChatWidget from './components/ChatWidget';
 import { initAuth, googleSignIn, logout, sendApplicationEmail } from './lib/firebase';
 import type { User } from 'firebase/auth';
 
@@ -97,7 +98,7 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(false);
-  const [sendError, setSendError] = useState<{ message: string; isTelegramUnstarted?: boolean } | null>(null);
+  const [sendError, setSendError] = useState<{ message: string } | null>(null);
 
   // Lock body scrolling ONLY when the interactive contact side drawer is open.
   // We use standard 'overflow: hidden' and 'touch-action: none' directly on the body 
@@ -176,14 +177,7 @@ export default function App() {
       }
 
       if (!response.ok) {
-        if (response.status === 412 || data.error === 'telegram_not_started') {
-          setSendError({
-            message: data.message || 'Бот не активирован в Telegram.',
-            isTelegramUnstarted: true
-          });
-        } else {
-          throw new Error(data.message || 'Упс! Произошла непредвиденная ошибка на стороне отправки. Пожалуйста, попробуйте еще раз.');
-        }
+        throw new Error(data.message || 'Упс! Произошла непредвиденная ошибка на стороне отправки. Пожалуйста, попробуйте еще раз.');
       } else {
         // Success state persistence
         setFormSubmitted(true);
@@ -192,7 +186,7 @@ export default function App() {
       console.error('Ошибка отправки заявки:', err);
       
       // Clean up technical messages into user-friendly Russian
-      let friendlyMessage = 'Произошла непредвиденная ошибка. Пожалуйста, попробуйте отправить повторно или свяжитесь с нами напрямую в Telegram.';
+      let friendlyMessage = 'Произошла непредвиденная ошибка. Пожалуйста, попробуйте отправить повторно или свяжитесь с нами напрямую по электронной почте.';
       
       if (err && err.message) {
         const msg = String(err.message).toLowerCase();
@@ -1420,7 +1414,7 @@ export default function App() {
                       {/* Contact information field */}
                       <div>
                         <label className="block text-xs font-mono text-neutral-400 mb-1.5 uppercase tracking-wide">
-                          Email или Telegram *
+                          Email для связи *
                         </label>
                         <input 
                           type="text" 
@@ -1428,7 +1422,7 @@ export default function App() {
                           required
                           value={formData.contact}
                           onChange={handleInputChange}
-                          placeholder="@axiom_founder или k.axiom@agency.ru"
+                          placeholder="k.axiom@agency.ru или ваш email/мессенджер"
                           className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-white/30 transition-colors placeholder:text-white/20"
                         />
                       </div>
@@ -1489,24 +1483,12 @@ export default function App() {
                       {/* Integration Status Block */}
                       <div className="mt-2.5 flex flex-col gap-3">
                         <div className="bg-white/[0.03] border border-white/5 rounded-xl p-4 text-xs text-neutral-400 leading-relaxed font-body">
-                          Все заявки мгновенно регистрируются во внутренней CRM-системе и направляются руководству на <strong className="text-white font-semibold">электронную почту SMTP</strong> или в <strong className="text-white font-semibold">Telegram</strong> для моментальной обработки.
+                          Все заявки мгновенно регистрируются во внутренней CRM-системе и направляются руководству на <strong className="text-white font-semibold">электронную почту (SMTP)</strong> или по <strong className="text-white font-semibold">Resend HTTP API / Webhook</strong> для моментальной обработки.
                         </div>
 
                         {sendError && (
                           <div className="bg-red-950/40 border border-red-900/50 text-red-200 text-xs rounded-xl p-4 leading-normal font-sans text-left">
                             <strong>Ошибка:</strong> {sendError.message}
-                            {sendError.isTelegramUnstarted && (
-                              <div className="mt-3">
-                                <a 
-                                  href="https://t.me/Axiomconsultbot" 
-                                  target="_blank" 
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1.5 bg-white text-black text-[11px] font-mono font-bold uppercase tracking-wider px-3.5 py-2 rounded-lg hover:bg-neutral-200 transition-all"
-                                >
-                                  👉 Запустить бота в Telegram
-                                </a>
-                              </div>
-                            )}
                           </div>
                         )}
                       </div>
@@ -1588,6 +1570,9 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Floating Interactive AI Chatbot Widget */}
+      <ChatWidget />
 
     </div>
   );

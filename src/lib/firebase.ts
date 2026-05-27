@@ -88,7 +88,7 @@ export async function sendApplicationEmail(
     `=============================================`,
     `Имя отправителя: ${formData.name}`,
     `Компания: ${formData.company || 'Не указана'}`,
-    `Контакты для связи (Email/Telegram): ${formData.contact}`,
+    `Контакты для связи (Email/Контакты): ${formData.contact}`,
     `Направление экспертизы: ${formData.service}`,
     `Текст сообщения/задачи:`,
     `${formData.message || 'Без описания детализации.'}`,

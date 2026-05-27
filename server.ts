@@ -6,12 +6,12 @@ import nodemailer from "nodemailer";
 import dotenv from "dotenv";
 import { Resend } from "resend";
 import PDFDocument from "pdfkit";
+import { GoogleGenAI } from "@google/genai";
 
 dotenv.config();
 
-// Setup config path for local chat ID storage
+// Setup config path for local storage
 const DATA_DIR = path.join(process.cwd(), "data");
-const CONFIG_FILE = path.join(DATA_DIR, "telegram_config.json");
 const LEADS_FILE = path.join(DATA_DIR, "leads.json");
 const FONTS_DIR = path.join(DATA_DIR, "fonts");
 const FONT_REGULAR_PATH = path.join(FONTS_DIR, "Roboto-Regular.ttf");
@@ -20,38 +20,6 @@ const FONT_BOLD_PATH = path.join(FONTS_DIR, "Roboto-Bold.ttf");
 // Insure directories exist
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
-}
-
-// Default credentials from the user (assembled as split string in memory to satisfy automated security audits)
-const DEFAULT_BOT_TOKEN = [
-  "875443",
-  "4309",
-  ":",
-  "AAHck5PJ7CN3",
-  "5P_XgqhFqALn",
-  "Si3pCkVpGBI"
-].join("");
-const TARGET_USERNAME = "Ortish0";
-
-// Interface for configuration
-interface Telconfig {
-  chatId: number | string | null;
-  botToken: string;
-}
-
-// Load or initialize config
-let config: Telconfig = {
-  chatId: process.env.TELEGRAM_CHAT_ID || null,
-  botToken: process.env.TELEGRAM_BOT_TOKEN || DEFAULT_BOT_TOKEN,
-};
-
-if (fs.existsSync(CONFIG_FILE)) {
-  try {
-    const saved = JSON.parse(fs.readFileSync(CONFIG_FILE, "utf-8"));
-    config = { ...config, ...saved };
-  } catch (e) {
-    console.error("Error reading saved config:", e);
-  }
 }
 
 // Helper function for fetch with timeout to prevent server hanging on network blocks
@@ -69,52 +37,6 @@ async function fetchWithTimeout(resource: string, options: any = {}) {
   } catch (error) {
     clearTimeout(id);
     throw error;
-  }
-}
-
-// Function to try to auto-detect Chat ID by pulling bot updates
-async function autoDetectChatId(): Promise<number | string | null> {
-  const token = config.botToken || DEFAULT_BOT_TOKEN;
-  const url = `https://api.telegram.org/bot${token}/getUpdates`;
-  try {
-    const res = await fetchWithTimeout(url, { timeout: 4000 });
-    if (!res.ok) return null;
-    const body: any = await res.json();
-    if (!body.ok || !body.result || body.result.length === 0) return null;
-
-    // First try to match Ortish0 (case-insensitive)
-    for (const update of body.result) {
-      const fromUser = update.message?.from || update.edited_message?.from || update.callback_query?.from;
-      if (fromUser) {
-        const username = fromUser.username;
-        if (username && username.toLowerCase() === TARGET_USERNAME.toLowerCase()) {
-          const matchedId = fromUser.id;
-          saveDetectedChatId(matchedId);
-          return matchedId;
-        }
-      }
-    }
-
-    // Fallback: take the latest active chat's ID of ANY user
-    const latestUpdate = body.result[body.result.length - 1];
-    const fromUser = latestUpdate.message?.from || latestUpdate.edited_message?.from || latestUpdate.callback_query?.from;
-    if (fromUser && fromUser.id) {
-      saveDetectedChatId(fromUser.id);
-      return fromUser.id;
-    }
-  } catch (err) {
-    console.error("Error during autoDetectChatId:", err);
-  }
-  return null;
-}
-
-function saveDetectedChatId(chatId: number | string) {
-  config.chatId = chatId;
-  try {
-    fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), "utf-8");
-    console.log(`Saved detected chat ID: ${chatId}`);
-  } catch (e) {
-    console.error("Failed to save config:", e);
   }
 }
 
@@ -362,24 +284,6 @@ async function startServer() {
       return res.sendStatus(200);
     }
     next();
-  });
-
-  // API Route: Check Telegram Status and try detecting Chat ID if not found
-  app.get("/api/telegram-status", async (req, res) => {
-    let currentChatId = process.env.TELEGRAM_CHAT_ID || config.chatId;
-
-    if (!currentChatId) {
-      // Try to auto-detect over the API
-      currentChatId = await autoDetectChatId();
-    }
-
-    res.json({
-      configured: !!currentChatId,
-      chatId: currentChatId || null,
-      username: TARGET_USERNAME,
-      botUsername: "Axiomconsultbot",
-      botLink: "https://t.me/Axiomconsultbot"
-    });
   });
 
   // API Route: Send Contact Lead
@@ -1188,6 +1092,480 @@ async function startServer() {
     } catch (pdfErr: any) {
       console.error("Error building PDF on request:", pdfErr);
       res.status(500).send("Ошибка компиляции PDF файла: " + pdfErr.message);
+    }
+  });
+
+  // Global map to store session messages for the chat assistant
+  const chatSessions = new Map<string, { role: "user" | "assistant"; content: string }[]>();
+
+  // Rule-based dialogue helper fallback when Claude API is offline/unavailable
+  function getFallbackChatResponse(messages: { role: string; content: string }[]): string {
+    const userMessages = messages.filter(m => m.role === "user");
+    const assistantMessages = messages.filter(m => m.role === "assistant");
+    
+    const lastMsgClean = userMessages.length > 0 ? userMessages[userMessages.length - 1].content.trim().toLowerCase() : "";
+    const lastAssistantMsg = assistantMessages.length > 0 ? assistantMessages[assistantMessages.length - 1].content.toLowerCase() : "";
+    
+    // Check if user is introducing contact details
+    const hasEmail = lastMsgClean.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i);
+    const hasPhone = lastMsgClean.match(/(\+?7|8)\s*\(?\d{3}\)?\s*\d{3}[- ]?\d{2}[- ]?\d{2}/) || lastMsgClean.match(/\+?\d{9,15}/);
+
+    if (hasEmail || hasPhone) {
+      // Parse email or phone
+      const email = (lastMsgClean.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i) || [""])[0] || "client@example.com";
+      const phone = (lastMsgClean.match(/(\+7|8)[^a-zA-Z]{5,15}/) || [""])[0]?.trim() || "+7 (999) 123-4567";
+      let name = "Клиент";
+      
+      // Try finding name
+      const nameParts = lastMsgClean.match(/меня зовут\s+([^,.\s]+)/i) || lastMsgClean.match(/имя\s+([^,.\s]+)/i) || lastMsgClean.match(/^([^,.\s@+]+)(?:\s|$)/i);
+      if (nameParts && nameParts[1] && nameParts[1].length > 1) {
+        name = nameParts[1];
+        // Capitalize name
+        name = name.charAt(0).toUpperCase() + name.slice(1);
+      }
+      
+      return `Отлично! Я записал ваши контакты. Наш старший финансовый аналитик свяжется с вами в течение 30 минут для проведения детального расчета окупаемости и составит индивидуальный план внедрения ИИ-решений. Спасибо за обращение!\n\n[LEAD_CAPTURED: имя=${name}, email=${email}, телефон=${phone}]`;
+    }
+
+    // 1. Specific contextual checks:
+    // If the assistant just asked for contacts but didn't receive them
+    if (lastAssistantMsg.includes("укажите ваше имя, электронную почту и номер телефона") || lastAssistantMsg.includes("оставьте контакты (имя, email, телефон)")) {
+      if (!hasEmail && !hasPhone) {
+        return "Я вижу ваше сообщение, но для записи мне необходимы контактные данные (хотя бы адрес электронной почты или номер телефона в формате +7... или 8...). Пожалуйста, напишите их, и я мгновенно отправлю заявку в CRM! 🗓️";
+      }
+    }
+
+    // 2. Beer-specific replies
+    if (lastMsgClean.includes("пиво") || lastMsgClean.includes("пивн") || lastMsgClean.includes("алко") || lastMsgClean.includes("напит") || lastMsgClean.includes("бар") || lastMsgClean.includes("ресторан")) {
+      return "Интересная сфера! В пивной индустрии / дистрибьюции напитков ИИ-ассистенты и предиктивная аналитика могут дать огромный ROI. 🍻 Например: автоматическое прогнозирование сезонного спроса (сокращение складских перегрузок на 15-20%), умный бот-закупщик для баров, или автоматический контроль выкладки на полках. Хотите рассчитать ROI окупаемости для вашего предприятия? Оставьте имя и контакты, и мы подготовим расчет!";
+    }
+
+    // 3. Regular keywords matches
+    if (lastMsgClean.includes("консульт") || lastMsgClean.includes("запис") || lastMsgClean.includes("звоно") || lastMsgClean.includes("внедр") || lastMsgClean.includes("оставит") || lastMsgClean.includes("контакт")) {
+      return "С радостью помогу вам запланировать индивидуальную сессию с Экспертом AXIOM! Пожалуйста, укажите ваше имя, электронную почту и номер телефона, чтобы мы могли согласовать удобное время и подготовить предварительные расчеты окупаемости AI под формат вашей компании.";
+    }
+
+    if (lastMsgClean.includes("цен") || lastMsgClean.includes("стоимост") || lastMsgClean.includes("прайс") || lastMsgClean.includes("сколько")) {
+      return "Стоимость внедрения ИИ-систем всегда индивидуальна и зависит от сложности проекта, архитектуры данных и объёмов автоматизации процессов. Мы в AXIOM детально рассчитываем CAPEX (активы) и OPEX (эксплуатацию) проекта до старта разработки. Хотите, мы проведем первичный расчет окупаемости (ROI) для вашей компании? Для этого оставьте контакты (Имя, Email, Телефон), и мы свяжемся с детальным расчётом.";
+    }
+
+    if (lastMsgClean.includes("привет") || lastMsgClean.includes("здравствуй") || lastMsgClean.includes("добрый")) {
+      return "Здравствуйте! Я — AI-ассистент AXIOM Consult. Мы проектируем бизнес-решения на базе ИИ с точным расчетом окупаемости инвестиций. Подскажите, какая сфера бизнеса вас интересует, или какие рутинные задачи вы планируете автоматизировать?";
+    }
+
+    if (lastMsgClean.includes("roi") || lastMsgClean.includes("окупаемост") || lastMsgClean.includes("инвестиц") || lastMsgClean.includes("расчет") || lastMsgClean.includes("эффект")) {
+      return "Расчет ROI и экономического эффекта ИИ — одна из наших ключевых специализаций. Мы оцениваем сокращение времени сотрудников, разгрузку поддержки, рост точности прогнозирования. Нам важно соотнести затраты (интеграция, API, хостинг) и выгоды. Какой у вас масштаб бизнеса (выручка в год) или количество сотрудников? Это поможет составить ориентир.";
+    }
+
+    if (lastMsgClean.includes("любишь") || lastMsgClean.includes("делаешь") || lastMsgClean.includes("кто ты") || lastMsgClean.includes("как дела") || lastMsgClean.includes("умеешь") || lastMsgClean.includes("робот")) {
+      return "Я — виртуальный ИИ-ассистент AXIOM Consult. Моя страсть — рассчитывать окупаемость ИИ-решений и помогать среднему и крупному бизнесу автоматизировать сложную рутину. 😊 Хотите, мы сделаем расчет экономического эффекта ИИ для вашей сферы?";
+    }
+
+    // 4. Default rotating replies to prevent frustrating repeating answers when inputting short or unclear texts
+    if (lastMsgClean.length < 4 || lastMsgClean === "и" || lastMsgClean.includes("да") || lastMsgClean.includes("нет")) {
+      const stepIndex = messages.length % 3;
+      if (stepIndex === 0) {
+        return "Понимаю вас! Чтобы я мог принести вам максимальную пользу, расскажите, пожалуйста, какая задача сейчас стоит перед вашим бизнесом? Или вы хотите получить бесплатный ИИ-аудит?";
+      } else if (stepIndex === 1) {
+        return "Интересно! Для детальной консультации по окупаемости ИО-технологий и нейросетей, оставьте, пожалуйста, контакты (Имя, Телефон, Email) — наш ведущий финансовый аналитик свяжется с вами.";
+      } else {
+        return "Зафиксировал! Буду рад рассказать вам больше про финансово-экономические модели для ИИ-интеграций. Вы можете спросить меня про расчет ROI, про этапы разработки или записаться на экспресс-аудит.";
+      }
+    }
+
+    // General fallback template checking dialogue length to stay engaged and variable
+    const stepIdx = messages.length % 3;
+    if (stepIdx === 0) {
+      return "Благодарю за информацию! Мы в AXIOM разрабатываем индивидуальные финансово-экономические модели для ИИ-интеграций. Поделитесь, пожалуйста, в какой именно сфере ваш бизнес, чтобы я подобрал наиболее подходящие ИИ-кейсы?";
+    } else if (stepIdx === 1) {
+      return "Спасибо за диалог! Как ваш ИИ-консультант, я нацелен на поиск зон роста маржинальности бизнеса. Хотите, мы бесплатно рассчитаем потенциальный эффект от автоматизации для ваших процессов? Для этого достаточно оставить имя, телефон и email.";
+    } else {
+      return "Вас понял! ИИ открывает фантастические пути снижения издержек (до 35% в операционке). Чтобы спланировать внедрение и оценить точные затраты проекта, вы можете оставить свои контактные данные для звонка с нашим экспертом.";
+    }
+  }
+
+  // API Route: AI chat assistant proxy
+  app.post("/api/chat", async (req, res) => {
+    try {
+      const { messages, sessionId } = req.body;
+      
+      if (!messages || !Array.isArray(messages) || !sessionId) {
+        return res.status(400).json({ error: "Невалидный запрос. Требуется messages (массив) и sessionId." });
+      }
+
+      // Update local cache of this current discussion thread
+      chatSessions.set(sessionId, messages);
+
+      const anthropicKey = process.env.ANTHROPIC_API_KEY;
+      let aiResponseText = "";
+      
+      const configSystemPrompt = `Ты — профессиональный AI-консультант компании AXIOM Consult. 
+
+О компании:
+AXIOM Consult — бутиковая консалтинговая компания. Специализируется на:
+1. Расчёт ROI и экономического эффекта от внедрения AI
+2. Финансовое планирование и бизнес-планы
+3. Маркетинговые стратегии и BI-системы
+
+Клиенты: средний и крупный бизнес, выручка от 100 млн руб.
+Команда: экс-EY, сертифицированные CFA аналитики.
+Сайт: axiom-consult.ru
+
+Твоя задача:
+- Отвечай профессионально, коротко, по делу
+- Задавай уточняющие вопросы чтобы понять бизнес клиента
+- После 3-4 сообщений мягко предложи бесплатную консультацию
+- Когда клиент готов — попроси имя, email и телефон
+- Никогда не называй конкретные цены — говори "рассчитаем индивидуально"
+- Язык: только русский
+- Тон: деловой, но дружелюбный
+- Если спрашивают не по теме — мягко возвращай к бизнес-задачам
+
+Когда собрал контакт (имя + email) — добавь в конец сообщения специальный тег:
+[LEAD_CAPTURED: имя=..., email=..., телефон=...]`;
+
+      if (anthropicKey) {
+        // Prepare message array for Claude API (matching role/content)
+        const claudeMessages = messages.map(msg => ({
+          role: msg.role === "assistant" ? "assistant" : "user",
+          content: msg.content
+        }));
+
+        try {
+          const apiResponse = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
+            method: "POST",
+            headers: {
+              "x-api-key": anthropicKey,
+              "anthropic-version": "2023-06-01",
+              "content-type": "application/json"
+            },
+            body: JSON.stringify({
+              model: "claude-3-5-sonnet-20241022",
+              max_tokens: 1500,
+              system: configSystemPrompt,
+              messages: claudeMessages
+            }),
+            timeout: 15000
+          });
+
+          if (!apiResponse.ok) {
+            const errTxt = await apiResponse.text();
+            throw new Error(`Claude API Error ${apiResponse.status}: ${errTxt}`);
+          }
+
+          const responseJson: any = await apiResponse.json();
+          if (responseJson.content && responseJson.content[0] && responseJson.content[0].text) {
+            aiResponseText = responseJson.content[0].text;
+          } else {
+            throw new Error("Неверный формат ответа от Anthropic");
+          }
+        } catch (apiErr: any) {
+          console.error("Claude API query failed. Attempting Gemini API fallback before offline dialogue...", apiErr.message || apiErr);
+        }
+      }
+
+      // If Claude is unavailable or wasn't configured, use Gemini API as a high-quality intelligent assistant
+      if (!aiResponseText) {
+        const geminiKey = process.env.GEMINI_API_KEY;
+        if (geminiKey) {
+          console.log("Using Gemini API for AXIOM Consult chat assistant...");
+          try {
+            const aiClient = new GoogleGenAI({
+              apiKey: geminiKey,
+              httpOptions: {
+                headers: {
+                  'User-Agent': 'aistudio-build',
+                }
+              }
+            });
+
+            // Format message history specifically for Gemini SDK format
+            const geminiContents = messages.map((msg: any) => ({
+              role: msg.role === "assistant" ? "model" : "user",
+              parts: [{ text: msg.content }]
+            }));
+
+            const response = await aiClient.models.generateContent({
+              model: "gemini-3.5-flash",
+              contents: geminiContents,
+              config: {
+                systemInstruction: configSystemPrompt,
+                temperature: 0.7,
+              }
+            });
+
+            if (response && response.text) {
+              aiResponseText = response.text;
+            } else {
+              throw new Error("Empty text received from Gemini");
+            }
+          } catch (geminiErr: any) {
+            console.error("Gemini API query failed as well. Reverting to rule-based offline simulator.", geminiErr.message || geminiErr);
+            aiResponseText = getFallbackChatResponse(messages);
+          }
+        } else {
+          console.log("No ANTHROPIC_API_KEY or GEMINI_API_KEY configured. Running chat responses through fallback offline expert dialogue loop.");
+          aiResponseText = getFallbackChatResponse(messages);
+        }
+      }
+
+      // Check if lead captured tag is found
+      const leadMatch = aiResponseText.match(/\[LEAD_CAPTURED:\s*([^\]]+)\]/i);
+      
+      if (leadMatch) {
+         const inner = leadMatch[1];
+         let name = "Не указано";
+         let email = "Не указан";
+         let phone = "Не указан";
+
+         const nameMatch = inner.match(/имя\s*=\s*([^,]+)/iu) || inner.match(/name\s*=\s*([^,]+)/iu);
+         if (nameMatch) name = nameMatch[1].trim();
+
+         const emailMatch = inner.match(/email\s*=\s*([^,]+)/iu) || inner.match(/емейл\s*=\s*([^,]+)/iu);
+         if (emailMatch) email = emailMatch[1].trim();
+
+         const phoneMatch = inner.match(/телефон\s*=\s*([^,\]]+)/iu) || inner.match(/телефон\s*=\s*([^\s,]+)/iu) || inner.match(/phone\s*=\s*([^,\]]+)/iu);
+         if (phoneMatch) phone = phoneMatch[1].trim();
+
+         // 1. Log lead in local data leads.json
+         const newChatLead = {
+           id: Date.now().toString(),
+           name: name,
+           company: "Консультант Чат",
+           phone: phone,
+           contact: email,
+           service: "ИИ-Ассистент (Чат)",
+           message: `[ЧАТ-ЛИД] Получен через виджет чата.\nЛог переписки:\n${messages.map((m: any) => `${m.role}: ${m.content}`).join("\n")}`,
+           createdAt: new Date().toISOString()
+         };
+
+         let localLeads: any[] = [];
+         if (fs.existsSync(LEADS_FILE)) {
+           try {
+             localLeads = JSON.parse(fs.readFileSync(LEADS_FILE, "utf-8"));
+           } catch (err) {
+             console.error("Failed parsing leads list in chat lead:", err);
+           }
+         }
+         localLeads.push(newChatLead);
+         try {
+           fs.writeFileSync(LEADS_FILE, JSON.stringify(localLeads, null, 2), "utf-8");
+           console.log(`Chat lead for ${name} saved successfully into local CRM!`);
+         } catch (err) {
+           console.error("Failed saving chat lead to CRM file:", err);
+         }
+
+
+
+         // 2. Deliver via Resend if configured
+         const resendApiKey = process.env.RESEND_API_KEY || "";
+         const notifyAdminTo = process.env.NOTIFY_TO || "ortish0@gmail.com";
+         
+         // 2. Deliver via Resend, SMTP or Webhook fallback
+         let emailSent = false;
+         let webhookSent = false;
+         let emailErrorMsg = "";
+         let webhookErrorMsg = "";
+         let usedMethod = "";
+
+         const notifyTo = process.env.NOTIFY_TO || process.env.SMTP_TO || notifyAdminTo;
+         const isResendConfigured = !!resendApiKey;
+
+         // Format last 10 messages for text and html
+         const lastMessagesTxt = messages.slice(-10).map((m: any) => {
+           const roleName = m.role === "user" ? "Клиент" : "Консультант";
+           return `${roleName}: ${m.content}`;
+         }).join("\n");
+
+         const lastMessagesHtml = messages.slice(-10).map((m: any) => {
+           const roleName = m.role === "user" ? "Клиент" : "Консультант";
+           return `<p style="margin: 4px 0;"><strong>${roleName}:</strong> ${m.content}</p>`;
+         }).join("\n");
+
+         const subjectStr = `🔥 Новый лид из чата AXIOM - ${name}`;
+         const textStr = `Новый лид из чата AXIOM\n\n` +
+                         `Имя: ${name}\n` +
+                         `Email: ${email}\n` +
+                         `Телефон: ${phone}\n\n` +
+                         `Последний диалог:\n${lastMessagesTxt}\n\n` +
+                         `Отправлено: ${new Date().toLocaleString("ru-RU")}`;
+
+         const htmlStr = `<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+           <div style="background-color: #ef4444; padding: 20px; text-align: center; color: #fff;">
+             <h2 style="margin: 0; font-size: 20px; letter-spacing: 1px;">⚡️ НОВЫЙ ЛИД ИЗ ЧАТА AXIOM</h2>
+           </div>
+           <div style="padding: 24px; background-color: #f9fafb;">
+             <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+               <tr style="border-bottom: 1px solid #e5e7eb;">
+                 <td style="padding: 10px 0; font-weight: bold; width: 140px; color: #4b5563;">👤 Имя:</td>
+                 <td style="padding: 10px 0;">${name}</td>
+               </tr>
+               <tr style="border-bottom: 1px solid #e5e7eb;">
+                 <td style="padding: 10px 0; font-weight: bold; color: #4b5563;">📧 Email:</td>
+                 <td style="padding: 10px 0;">${email}</td>
+               </tr>
+               <tr style="border-bottom: 1px solid #e5e7eb;">
+                 <td style="padding: 10px 0; font-weight: bold; color: #4b5563;">📱 Телефон:</td>
+                 <td style="padding: 10px 0;">${phone}</td>
+               </tr>
+             </table>
+             
+             <div style="margin-top: 20px; background-color: #fff; border-left: 4px solid #ef4444; padding: 15px; border-radius: 4px;">
+               <strong style="display: block; margin-bottom: 8px; color: #4b5563;">💬 Лог переписки (последние реплики):</strong>
+               <div style="white-space: pre-wrap; font-size: 14px; color: #1f2937; line-height: 1.5;">${lastMessagesHtml}</div>
+             </div>
+           </div>
+           <div style="background-color: #f3f4f6; color: #9ca3af; padding: 12px; text-align: center; font-size: 11px; border-top: 1px solid #e5e7eb;">
+             Отправлено автоматически через сервер AXIOM Consult • ${new Date().toLocaleString("ru-RU")}
+           </div>
+         </div>`;
+
+         // 1. Try Resend
+         if (isResendConfigured) {
+           console.log(`Resend HTTP API sending chat lead to: ${notifyTo}`);
+           try {
+             const resend = new Resend(resendApiKey);
+             const resendFrom = "AXIOM Consult <onboarding@resend.dev>";
+             
+             const resendRes = await resend.emails.send({
+               from: resendFrom,
+               to: notifyTo,
+               subject: subjectStr,
+               text: textStr,
+               html: htmlStr
+             });
+
+             if (resendRes.error) {
+               throw new Error(resendRes.error.message || JSON.stringify(resendRes.error));
+             }
+
+             console.log("Chat lead sent successfully via Resend API!");
+             emailSent = true;
+             usedMethod = "Resend API";
+           } catch (resendErr: any) {
+             console.error("Failed to notify lead email via Resend in chat:", resendErr);
+             emailErrorMsg = `Ошибка Resend: ${resendErr.message || resendErr}`;
+           }
+         }
+
+         // 2. Try SMTP fallback
+         let smtpUser = process.env.SMTP_USER || "";
+         let smtpPass = process.env.SMTP_PASS || "";
+         let smtpHost = process.env.SMTP_HOST || "";
+         let smtpPort = parseInt(process.env.SMTP_PORT || "0", 10);
+         let smtpSecure = process.env.SMTP_SECURE === "true";
+
+         if (smtpUser && !smtpHost) {
+           const emailLower = smtpUser.toLowerCase();
+           if (emailLower.endsWith("@gmail.com")) {
+             smtpHost = "smtp.gmail.com";
+             smtpPort = 465;
+             smtpSecure = true;
+           } else if (emailLower.endsWith("@yandex.ru") || emailLower.endsWith("@ya.ru")) {
+             smtpHost = "smtp.yandex.ru";
+             smtpPort = 465;
+             smtpSecure = true;
+           } else if (emailLower.endsWith("@mail.ru") || emailLower.endsWith("@inbox.ru") || emailLower.endsWith("@bk.ru") || emailLower.endsWith("@list.ru")) {
+             smtpHost = "smtp.mail.ru";
+             smtpPort = 465;
+             smtpSecure = true;
+           }
+         }
+
+         if (smtpUser.toLowerCase().endsWith("@gmail.com")) {
+           smtpPass = smtpPass.replace(/\s+/g, "");
+         }
+
+         if (!smtpPort) {
+           smtpPort = 465;
+           smtpSecure = true;
+         }
+
+         const isSmtpConfigured = smtpHost && smtpUser && smtpPass && !smtpUser.includes("your-email");
+         const smtpFrom = process.env.SMTP_FROM || (smtpUser ? `AXIOM Consult <${smtpUser}>` : "");
+
+         if (!emailSent && isSmtpConfigured) {
+           console.log(`SMTP sending chat lead: Host=${smtpHost}, Port=${smtpPort}, User=${smtpUser}, To=${notifyTo}`);
+           try {
+             const transporter = nodemailer.createTransport({
+               host: smtpHost,
+               port: smtpPort,
+               secure: smtpPort === 465 || smtpSecure,
+               auth: {
+                 user: smtpUser,
+                 pass: smtpPass
+               },
+               connectionTimeout: 5000,
+               greetingTimeout: 5000,
+               socketTimeout: 5000
+             });
+
+             await transporter.sendMail({
+               from: smtpFrom || smtpUser,
+               to: notifyTo,
+               subject: subjectStr,
+               text: textStr,
+               html: htmlStr
+             });
+
+             console.log("Chat lead sent successfully via SMTP!");
+             emailSent = true;
+             usedMethod = "SMTP";
+           } catch (mailErr: any) {
+             console.error("Failed to notify lead email via SMTP in chat:", mailErr);
+             emailErrorMsg = `${mailErr.message || mailErr}`;
+           }
+         }
+
+         // 3. Try Webhook fallback
+         const webhookUrl = process.env.WEBHOOK_URL || "";
+         if (webhookUrl) {
+           console.log(`Sending Webhook notification for chat lead to: ${webhookUrl}`);
+           try {
+             const webhookResponse = await fetchWithTimeout(webhookUrl, {
+               method: "POST",
+               headers: {
+                 "Content-Type": "application/json",
+                 "Accept": "application/json"
+               },
+               body: JSON.stringify({
+                 event: "chat_lead",
+                 lead: newChatLead
+               }),
+               timeout: 4000
+             });
+
+             if (webhookResponse.ok) {
+               console.log("Chat webhook sent successfully!");
+               webhookSent = true;
+             } else {
+               console.error(`Chat Webhook error: ${webhookResponse.statusText}`);
+               webhookErrorMsg = `Статус ${webhookResponse.status} ${webhookResponse.statusText}`;
+             }
+           } catch (webhookErr: any) {
+             console.error("Failed to send Webhook notification in chat:", webhookErr);
+             webhookErrorMsg = `${webhookErr.message || webhookErr}`;
+           }
+         }
+
+         if (!emailSent && !webhookSent) {
+           console.warn("No active notification delivery channels (Resend, SMTP, Webhook) succeeded. Saved to local database only.");
+         }
+
+         // Clean out lead capture tags before returning to client!
+         aiResponseText = aiResponseText.replace(/\[LEAD_CAPTURED:[^\]]+\]/gi, "").trim();
+      }
+
+      // Append assistant's response to history
+      const sessionHistory = chatSessions.get(sessionId) || [];
+      sessionHistory.push({ role: "assistant", content: aiResponseText });
+      chatSessions.set(sessionId, sessionHistory);
+
+      return res.json({ message: aiResponseText });
+
+    } catch (err: any) {
+      console.error("General error in chat endpoint:", err);
+      return res.status(500).json({ error: err.message || "Внутренняя ошибка сервера при обработке чата" });
     }
   });
 
